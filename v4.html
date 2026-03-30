@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>6-7반 톡톡 V3 - Purple</title>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <style>
+        :root { 
+            --p-main: #6a1b9a; 
+            --p-dark: #4a148c; 
+            --p-mid: #9c27b0; 
+            --p-light: #f3e5f5; 
+            --p-soft: #ede7f6;
+            --white: #ffffff; 
+            --gray-bg: #f8f9fa; 
+            --gray-text: #757575;
+            --shadow: 0 4px 15px rgba(106, 27, 154, 0.1);
+        }
+        * { box-sizing: border-box; font-family: 'Pretendard', -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
+        
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; background: var(--white); overflow: hidden; position: fixed; }
+
+        /* 공통 레이아웃 */
+        .section { display: none; height: 100%; width: 100%; flex-direction: column; background: var(--white); }
+        .section.active { display: flex; }
+
+        /* 로그인 섹션 */
+        #login-section { justify-content: center; align-items: center; background: linear-gradient(135deg, var(--p-main), var(--p-mid)); padding: 20px; }
+        .login-card { background: white; padding: 40px 30px; border-radius: 35px; width: 100%; max-width: 380px; box-shadow: 0 20px 40px rgba(0,0,0,0.2); text-align: center; }
+
+        /* 상단 헤더 */
+        .app-header { padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; font-size: 20px; font-weight: 800; border-bottom: 1px solid #f0f0f0; color: var(--p-dark); }
+        
+        /* 탭 네비게이션 */
+        .tab-bar { 
+            display: flex; height: 65px; border-top: 1px solid #eee; background: #fff;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        .tab-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 11px; color: #bdbdbd; cursor: pointer; transition: 0.2s; }
+        .tab-item.active { color: var(--p-main); }
+        .tab-icon { font-size: 22px; margin-bottom: 4px; }
+
+        /* 목록 아이템 스타일 */
+        .list-container { flex: 1; overflow-y: auto; padding-bottom: 20px; background: var(--white); }
+        .list-item { display: flex; align-items: center; padding: 14px 20px; cursor: pointer; border-bottom: 1px solid #fcfcfc; }
+        .list-item:active { background: var(--p-soft); }
+        .profile-img { width: 52px; height: 52px; border-radius: 20px; object-fit: cover; background: var(--p-soft); margin-right: 15px; border: 1px solid #eee; }
+        .list-info { flex: 1; padding-bottom: 2px; }
+        .list-name { font-weight: 700; font-size: 16px; margin-bottom: 4px; color: #333; }
+        .list-desc { font-size: 13px; color: var(--gray-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        /* 채팅 화면 */
+        #chat-section { background: #f4f0f7; } 
+        .chat-header { background: white; padding: 15px; display: flex; align-items: center; gap: 12px; font-weight: 800; border-bottom: 1px solid #eee; color: var(--p-dark); }
+        #chat-display { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; }
+        
+        /* 메시지 스타일 */
+        .date-divider { display: flex; justify-content: center; margin: 25px 0; }
+        .date-divider span { background: rgba(106, 27, 154, 0.15); color: var(--p-dark); font-size: 11px; padding: 5px 15px; border-radius: 20px; font-weight: 600; }
+        
+        .msg-row { display: flex; margin-bottom: 18px; max-width: 88%; align-items: flex-end; }
+        .msg-row.me { align-self: flex-end; flex-direction: row-reverse; }
+        .msg-sender { font-size: 12px; color: var(--p-main); margin-bottom: 4px; display: block; font-weight: 700; }
+        
+        .bubble { 
+            padding: 12px 16px; border-radius: 18px; font-size: 15px; line-height: 1.5; background: white; position: relative;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.03); word-break: break-all; color: #333;
+        }
+        .me .bubble { background: var(--p-main); color: white; border-top-right-radius: 4px; }
+        .other .bubble { border-top-left-radius: 4px; border: 1px solid #eee; }
+        .bubble img { max-width: 220px; border-radius: 10px; margin-top: 8px; display: block; cursor: pointer; }
+        
+        .msg-time { font-size: 10px; color: #9e9e9e; margin: 0 6px; white-space: nowrap; }
+
+        /* 입력창 */
+        .chat-input-wrap { background: white; padding: 12px 15px; display: flex; align-items: flex-end; gap: 12px; border-top: 1px solid #eee; padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+        #msgInput { flex: 1; border: 1.5px solid var(--p-soft); border-radius: 22px; padding: 10px 18px; outline: none; max-height: 100px; overflow-y: auto; font-size: 15px; background: #fafafa; }
+        #msgInput:focus { border-color: var(--p-main); background: #fff; }
+        .icon-btn { font-size: 24px; background: none; border: none; cursor: pointer; padding: 4px; color: var(--p-main); opacity: 0.8; }
+        #sendBtn { background: var(--p-main); color: white; border: none; padding: 10px 18px; border-radius: 20px; font-weight: 800; cursor: pointer; transition: 0.2s; }
+        #sendBtn:active { transform: scale(0.95); background: var(--p-dark); }
+
+        /* 파일 카드 */
+        .file-card { display: flex; align-items: center; background: rgba(0,0,0,0.04); padding: 12px; border-radius: 12px; text-decoration: none; color: inherit; margin-top: 8px; border: 1px solid rgba(0,0,0,0.05); }
+        .me .file-card { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.2); color: white; }
+        .file-icon { font-size: 22px; margin-right: 10px; }
+
+        /* 모달 */
+        .modal { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); display:none; justify-content:center; align-items:center; z-index:2000; backdrop-filter: blur(5px); }
+        .modal-content { background:white; width:90%; max-width:380px; border-radius:30px; padding:30px; box-shadow: 0 15px 30px rgba(0,0,0,0.2); }
+
+        .btn-primary { width:100%; padding:16px; background:var(--p-main); color:white; border:none; border-radius:15px; font-weight: 800; cursor:pointer; font-size: 16px; }
+        .btn-primary:hover { background: var(--p-dark); }
+        .input-field { width:100%; padding:15px; border:1.5px solid var(--p-soft); border-radius:12px; margin-bottom:15px; outline:none; font-size: 15px; }
+        .input-field:focus { border-color: var(--p-main); }
+        
+        .sub-btn { background: var(--p-soft); color: var(--p-main); border: none; padding: 12px; border-radius: 12px; font-weight: 700; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <!-- 1. 로그인 섹션 -->
+    <div id="login-section" class="section active">
+        <div class="login-card">
+            <div style="font-size: 50px; margin-bottom: 15px;">💜</div>
+            <h2 style="margin-bottom:30px; color: var(--p-dark); font-weight: 900;">6-7반 톡톡</h2>
+            <select id="loginName" class="input-field">
+                <option value="">이름을 선택하세요</option>
+            </select>
+            <input type="password" id="loginPw" class="input-field" placeholder="비밀번호 (번호 4자리)">
+            <button class="btn-primary" onclick="handleLogin()">로그인</button>
+        </div>
+    </div>
+
+    <!-- 2. 메인 섹션 (탭 전환) -->
+    <div id="main-section" class="section">
+        <header class="app-header">
+            <span id="header-title">친구</span>
+            <div style="font-size:18px; color: var(--p-main); cursor: pointer;">🔍 👤➕ ⚙️</div>
+        </header>
+
+        <div id="tab-friends" class="list-container active-tab">
+            <div style="padding: 18px 20px 8px; font-size: 12px; color: var(--p-main); font-weight: 700;">내 프로필</div>
+            <div id="my-profile-item"></div>
+            <div style="padding: 15px 20px 8px; font-size: 12px; color: var(--p-main); font-weight: 700; border-top: 8px solid #f8f9fa;">친구 <span id="friend-count">0</span></div>
+            <div id="friend-list"></div>
+        </div>
+
+        <div id="tab-chats" class="list-container" style="display:none;">
+            <div id="chat-list"></div>
+        </div>
+
+        <div id="tab-openchat" class="list-container" style="display:none;">
+            <div style="padding: 40px 20px; text-align: center; color: #555;">
+                <div style="font-size: 60px; margin-bottom: 20px;">🌍</div>
+                <h3 style="color: var(--p-dark);">6-7반 광장</h3>
+                <p style="font-size:14px; color: #777; line-height: 1.6;">모든 친구들이 함께 모여<br>자유롭게 대화하는 공간입니다.</p>
+                <button class="btn-primary" style="margin-top:20px; max-width: 250px;" onclick="joinOpenChat('all_students', '6-7반 전체 대화방')">전체 대화방 입장</button>
+            </div>
+        </div>
+
+        <nav class="tab-bar">
+            <div class="tab-item active" onclick="switchTab('friends')"><span class="tab-icon">👤</span>친구</div>
+            <div class="tab-item" onclick="switchTab('chats')"><span class="tab-icon">💬</span>채팅</div>
+            <div class="tab-item" onclick="switchTab('openchat')"><span class="tab-icon">🌐</span>오픈채팅</div>
+            <div class="tab-item" onclick="openMyPage()"><span class="tab-icon">✨</span>더보기</div>
+        </nav>
+    </div>
+
+    <!-- 3. 채팅 섹션 -->
+    <div id="chat-section" class="section">
+        <header class="chat-header">
+            <button onclick="exitChat()" style="background:none; border:none; font-size:22px; cursor:pointer; color: var(--p-main);">←</button>
+            <span id="chat-room-title">대화방</span>
+            <span id="chat-room-count" style="font-size:12px; color:var(--gray-text);"></span>
+        </header>
+        <div id="chat-display"></div>
+        <div class="chat-input-wrap">
+            <button class="icon-btn" onclick="triggerFile()">📎</button>
+            <input type="text" id="msgInput" placeholder="메시지를 입력하세요" onkeypress="if(event.keyCode==13) sendMsg()">
+            <button id="sendBtn" onclick="sendMsg()">전송</button>
+            <input type="file" id="fileInput" style="display:none" onchange="handleFileUpload(this)">
+        </div>
+    </div>
+
+    <!-- 마이페이지 모달 -->
+    <div id="mypage-modal" class="modal">
+        <div class="modal-content">
+            <h3 style="color: var(--p-dark); margin-top:0;">프로필 설정</h3>
+            <div style="position: relative; width: 90px; height: 90px; margin: 0 auto 20px;">
+                <img id="edit-avatar-preview" src="" style="width:100%; height:100%; border-radius:35px; object-fit:cover; border: 2px solid var(--p-soft);">
+                <div style="position: absolute; bottom: -5px; right: -5px; background: var(--p-main); color: white; width: 30px; height: 30px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 14px; border: 2px solid white; cursor: pointer;" onclick="document.getElementById('profileImgInput').click()">📷</div>
+            </div>
+            <input type="file" id="profileImgInput" style="display:none" accept="image/*" onchange="previewProfile(this)">
+            
+            <label style="font-size: 13px; color: var(--p-main); font-weight: 700; margin-bottom: 5px; display: block;">비밀번호 변경</label>
+            <input type="text" id="newPw" class="input-field" placeholder="새 비밀번호 입력">
+            
+            <div style="display: flex; gap: 10px;">
+                <button class="btn-primary" onclick="saveProfile()" style="flex: 2;">저장</button>
+                <button class="sub-btn" onclick="closeModal('mypage-modal')" style="flex: 1;">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = { databaseURL: "https://class-chat-6-7-default-rtdb.asia-southeast1.firebasedatabase.app/" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        const students = {"강유주":"6701","고윤서":"6702","공윤호":"6703","김성민":"6704","김태윤":"6705","나현웅":"6706","류찬혁":"6707","문예린":"6708","박소율":"6709","박채윤":"6710","배예람":"6711","백한율":"6712","우은서":"6713","우진서":"6714","윤소영":"6715","임소윤":"6716","임수현":"6717","정시후":"6718","조수빈":"6719","최리한":"6720","최은수":"6721","최준성":"6722","하예준":"6723","허단":"6724"};
+        let myName = "", currentRoomId = null, chatRef = null, allProfiles = {};
+
+        const loginSelect = document.getElementById('loginName');
+        Object.keys(students).sort().forEach(name => {
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.innerText = name;
+            loginSelect.appendChild(opt);
+        });
+
+        async function handleLogin() {
+            const name = document.getElementById('loginName').value;
+            const pw = document.getElementById('loginPw').value;
+            if(!name || !pw) return alert("정보를 입력하세요.");
+            const snap = await db.ref('profiles/'+name).once('value');
+            const data = snap.val() || { pw: students[name] };
+            if(data.pw !== pw) return alert("비밀번호가 틀렸습니다.");
+            myName = name;
+            startApp();
+        }
+
+        function startApp() {
+            showSection('main-section');
+            syncData();
+        }
+
+        function syncData() {
+            db.ref('profiles').on('value', snap => {
+                allProfiles = snap.val() || {};
+                renderFriends();
+                renderChatList();
+            });
+        }
+
+        function renderFriends() {
+            const list = document.getElementById('friend-list');
+            const myItem = document.getElementById('my-profile-item');
+            list.innerHTML = "";
+            const myData = allProfiles[myName] || {};
+            const myImg = myData.img || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
+            myItem.innerHTML = `
+                <div class="list-item">
+                    <img src="${myImg}" class="profile-img" style="width:62px; height:62px; border-radius:24px;">
+                    <div class="list-info" style="border:none;">
+                        <div class="list-name" style="font-size:18px; color: var(--p-dark);">${myName}</div>
+                        <div class="list-desc">나만의 특별한 상태메시지를 남겨보세요.</div>
+                    </div>
+                </div>
+            `;
+            const friendNames = Object.keys(students).filter(n => n !== myName).sort();
+            document.getElementById('friend-count').innerText = friendNames.length;
+            friendNames.forEach(name => {
+                const p = allProfiles[name] || {};
+                const img = p.img || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
+                const div = document.createElement('div');
+                div.className = "list-item";
+                div.innerHTML = `
+                    <img src="${img}" class="profile-img">
+                    <div class="list-info">
+                        <div class="list-name">${name}</div>
+                        <div class="list-desc">함께 대화를 나눠보세요!</div>
+                    </div>
+                `;
+                div.onclick = () => startPersonalChat(name);
+                list.appendChild(div);
+            });
+        }
+
+        function renderChatList() {
+            const list = document.getElementById('chat-list');
+            list.innerHTML = `
+                <div class="list-item" onclick="joinOpenChat('all_students', '6-7반 전체 대화방')">
+                    <div class="profile-img" style="background:var(--p-soft); display:flex; justify-content:center; align-items:center; font-size:24px; color: var(--p-main); border:none;">👥</div>
+                    <div class="list-info">
+                        <div class="list-name">6-7반 전체 대화방</div>
+                        <div class="list-desc">우리반 친구들이 모두 모여있어요.</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function startPersonalChat(target) {
+            const roomId = [myName, target].sort().join("_");
+            joinChat(roomId, target);
+        }
+
+        function joinOpenChat(id, title) { joinChat("open_" + id, title); }
+
+        function joinChat(roomId, title) {
+            currentRoomId = roomId;
+            chatRef = db.ref('chats/' + roomId);
+            document.getElementById('chat-room-title').innerText = title;
+            showSection('chat-section');
+            listenMessages();
+        }
+
+        function listenMessages() {
+            chatRef.off();
+            chatRef.limitToLast(100).on('value', snap => {
+                const display = document.getElementById('chat-display');
+                display.innerHTML = "";
+                let lastDate = "";
+                snap.forEach(child => {
+                    const m = child.val();
+                    const isMe = m.sender === myName;
+                    const currentDate = new Date(m.time).toDateString();
+                    if(currentDate !== lastDate) {
+                        const div = document.createElement('div');
+                        div.className = "date-divider";
+                        div.innerHTML = `<span>${formatDateDivider(m.time)}</span>`;
+                        display.appendChild(div);
+                        lastDate = currentDate;
+                    }
+                    const row = document.createElement('div');
+                    row.className = `msg-row ${isMe ? 'me' : 'other'}`;
+                    const p = allProfiles[m.sender] || {};
+                    const img = p.img || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
+                    const time = formatTime(m.time);
+                    let content = "";
+                    if(m.file) {
+                        content = `<a href="${m.file.data}" download="${m.file.name}" class="file-card">
+                                <span class="file-icon">📄</span>
+                                <div style="margin-left:8px; overflow:hidden;">
+                                    <div style="font-size:13px; font-weight:700;">${m.file.name}</div>
+                                    <div style="font-size:11px; opacity:0.7;">${m.file.size}</div>
+                                </div>
+                            </a>`;
+                    } else if(m.img) {
+                        content = `<img src="${m.img}" onclick="window.open(this.src)">`;
+                    } else {
+                        content = `<div>${m.text}</div>`;
+                    }
+                    row.innerHTML = `
+                        ${isMe ? '' : `<img src="${img}" class="profile-img" style="width:38px; height:38px; border-radius:14px; margin-right:8px; align-self:flex-start;">`}
+                        <div>
+                            ${isMe ? '' : `<span class="msg-sender">${m.sender}</span>`}
+                            <div style="display:flex; align-items:flex-end; flex-direction:${isMe?'row-reverse':'row'}">
+                                <div class="bubble">${content}</div>
+                                <span class="msg-time">${time}</span>
+                            </div>
+                        </div>
+                    `;
+                    display.appendChild(row);
+                });
+                display.scrollTop = display.scrollHeight;
+            });
+        }
+
+        function sendMsg(fileData = null, isImage = false) {
+            const input = document.getElementById('msgInput');
+            if(!input.value.trim() && !fileData) return;
+            const msg = { sender: myName, time: Date.now() };
+            if(fileData) {
+                if(isImage) msg.img = fileData;
+                else msg.file = fileData;
+            } else { msg.text = input.value; }
+            chatRef.push(msg);
+            input.value = "";
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.list-container').forEach(c => c.style.display = 'none');
+            document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+            document.getElementById('tab-' + tabId).style.display = 'block';
+            event.currentTarget.classList.add('active');
+            const titles = { friends: "친구", chats: "채팅", openchat: "오픈채팅" };
+            document.getElementById('header-title').innerText = titles[tabId];
+        }
+
+        function formatTime(ts) {
+            const d = new Date(ts);
+            let h = d.getHours();
+            const m = String(d.getMinutes()).padStart(2, '0');
+            const ap = h >= 12 ? "오후" : "오전";
+            return `${ap} ${(h%12)||12}:${m}`;
+        }
+
+        function formatDateDivider(ts) {
+            const d = new Date(ts);
+            const days = ["일요일","월요일","화요일","수요일","목요일","금요일","토요일"];
+            return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일 ${days[d.getDay()]}`;
+        }
+
+        function exitChat() { if(chatRef) chatRef.off(); showSection('main-section'); }
+        function triggerFile() { document.getElementById('fileInput').click(); }
+        function handleFileUpload(input) {
+            if(!input.files || !input.files[0]) return;
+            const file = input.files[0];
+            const reader = new FileReader();
+            reader.onload = e => {
+                const isImg = file.type.startsWith('image/');
+                if(isImg) sendMsg(e.target.result, true);
+                else sendMsg({ name: file.name, size: (file.size/1024).toFixed(1)+"KB", data: e.target.result }, false);
+            };
+            reader.readAsDataURL(file);
+            input.value = "";
+        }
+
+        function openMyPage() {
+            const myData = allProfiles[myName] || {};
+            document.getElementById('edit-avatar-preview').src = myData.img || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
+            document.getElementById('mypage-modal').style.display = 'flex';
+        }
+
+        function previewProfile(input) {
+            if(input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = e => document.getElementById('edit-avatar-preview').src = e.target.result;
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        function saveProfile() {
+            const img = document.getElementById('edit-avatar-preview').src;
+            const pw = document.getElementById('newPw').value;
+            const update = { img: img };
+            if(pw.trim()) update.pw = pw;
+            db.ref('profiles/'+myName).update(update).then(() => {
+                alert("프로필이 저장되었습니다.");
+                closeModal('mypage-modal');
+            });
+        }
+
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+        function showSection(id) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+        }
+    </script>
+</body>
+</html>
