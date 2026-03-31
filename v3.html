@@ -83,7 +83,6 @@
             -webkit-overflow-scrolling: touch;
         }
 
-        /* 날짜 구분선 스타일 */
         .date-divider {
             display: flex;
             align-items: center;
@@ -115,7 +114,6 @@
         #msgInput { flex: 1; padding: 12px 20px; border-radius: 25px; border: 1.5px solid #eee; background: #f9f9fb; font-size: 16px; outline: none; }
         #sendBtn { background: var(--p-main); color: white; border: none; padding: 12px 22px; border-radius: 20px; font-weight: 800; cursor: pointer; }
 
-        /* 메시지 버블 및 시간 표시 */
         .msg-row { display: flex; max-width: 88%; align-items: flex-end; margin-bottom: 18px; padding: 0 15px; position: relative; }
         .msg-row.me { align-self: flex-end; flex-direction: row-reverse; }
         
@@ -129,7 +127,6 @@
         .other .bubble { border-bottom-left-radius: 4px; }
         .bubble img { max-width: 240px; border-radius: 12px; display: block; margin-top: 8px; cursor: pointer; }
 
-        /* 파일 카드 스타일 */
         .file-card {
             display: flex;
             align-items: center;
@@ -155,6 +152,39 @@
             margin-bottom: 4px;
         }
 
+        /* [모달 및 알림창 디자인] */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5);
+            display: none; justify-content: center; align-items: center; z-index: 3000; backdrop-filter: blur(4px);
+        }
+        .modal-content {
+            background: #fff; border-radius: 35px; padding: 30px; width: 90%; max-width: 400px; 
+            max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+            position: relative;
+        }
+        .active { display: flex !important; }
+
+        .action-btn { padding: 18px; border-radius: 22px; border: none; background: var(--p-main); color: #fff; font-weight: 800; cursor: pointer; font-size: 16px; width: 100%; }
+        .sub-btn { padding: 15px; border-radius: 18px; border: none; background: #f0f0f5; color: #555; font-weight: 700; cursor: pointer; font-size: 14px; }
+        
+        /* 알림용(Custom Alert) 스타일 */
+        .alert-card { text-align: center; }
+        .alert-icon { font-size: 40px; margin-bottom: 15px; display: block; }
+        .alert-title { font-size: 20px; font-weight: 800; color: var(--p-dark); margin-bottom: 10px; }
+        .alert-msg { font-size: 15px; color: #666; margin-bottom: 25px; line-height: 1.5; }
+
+        /* 토스트 메시지 */
+        #toast-container {
+            position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
+            z-index: 9999; pointer-events: none;
+        }
+        .toast {
+            background: rgba(0,0,0,0.8); color: white; padding: 12px 25px; border-radius: 30px;
+            font-size: 14px; margin-bottom: 10px; opacity: 0; transition: all 0.3s ease;
+            transform: translateY(20px); box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        .toast.show { opacity: 1; transform: translateY(0); }
+
         @media screen and (max-width: 480px) {
             .card { padding: 25px; border-radius: 30px; }
             .global-clock { font-size: 12px; padding: 6px 14px; top: 10px; }
@@ -164,24 +194,14 @@
             .avatar-wrap { width: 100px; height: 100px; }
             .bubble img { max-width: 180px; }
         }
-
-        .modal-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5);
-            display: none; justify-content: center; align-items: center; z-index: 3000; backdrop-filter: blur(4px);
-        }
-        .modal-content {
-            background: #fff; border-radius: 35px; padding: 30px; width: 90%; max-width: 400px; 
-            max-height: 85vh; overflow-y: auto;
-        }
-        .active { display: flex !important; }
-
-        .action-btn { padding: 18px; border-radius: 22px; border: none; background: var(--p-main); color: #fff; font-weight: 800; cursor: pointer; font-size: 16px; width: 100%; }
-        .sub-btn { padding: 15px; border-radius: 18px; border: none; background: #f0f0f5; color: #555; font-weight: 700; cursor: pointer; font-size: 14px; }
     </style>
 </head>
 <body>
 
     <div id="clock-display" class="global-clock clock-left"></div>
+
+    <!-- 토스트 컨테이너 -->
+    <div id="toast-container"></div>
 
     <!-- 로그인 -->
     <div id="login-section" class="section active">
@@ -233,7 +253,7 @@
             <div style="display:flex; gap:10px;">
                 <button class="sub-btn" style="padding: 8px 12px;" onclick="triggerImg()" title="이미지 전송">📸</button>
                 <button class="sub-btn" style="padding: 8px 12px;" onclick="triggerFile()" title="파일 전송">📎</button>
-                <button class="sub-btn" style="padding: 8px 12px;" onclick="openSchedList()">⏰</button>
+                <button class="sub-btn" style="padding: 8px 12px;" onclick="showAlert('준비 중', '예약 목록 기능은 현재 개발 중입니다!', '⏰')">⏰</button>
                 <input type="file" id="chatImgInput" style="display:none" accept="image/*" onchange="uploadChatImg(this)">
                 <input type="file" id="chatFileInput" style="display:none" onchange="uploadChatFile(this)">
             </div>
@@ -244,7 +264,9 @@
         </div>
     </div>
 
-    <!-- 모달들 -->
+    <!-- [공용 모달들] -->
+    
+    <!-- 이름 선택 모달 -->
     <div id="name-modal" class="modal-overlay">
         <div class="modal-content">
             <h3 style="margin-top:0; color:var(--p-main);">학생 선택</h3>
@@ -253,6 +275,7 @@
         </div>
     </div>
 
+    <!-- 마이페이지 모달 -->
     <div id="mypage-modal" class="modal-overlay">
         <div class="modal-content">
             <h3 style="margin-top:0; color:var(--p-main);">마이페이지</h3>
@@ -273,6 +296,16 @@
         </div>
     </div>
 
+    <!-- 알림용 커스텀 모달 (Alert 대체) -->
+    <div id="custom-alert-modal" class="modal-overlay">
+        <div class="modal-content alert-card">
+            <span id="alert-icon" class="alert-icon">⚠️</span>
+            <div id="alert-title" class="alert-title">알림</div>
+            <div id="alert-msg" class="alert-msg">메시지 내용이 들어갑니다.</div>
+            <button class="action-btn" onclick="closeModal('custom-alert-modal')">확인</button>
+        </div>
+    </div>
+
     <script>
         const firebaseConfig = { databaseURL: "https://class-chat-6-7-default-rtdb.asia-southeast1.firebasedatabase.app/" };
         firebase.initializeApp(firebaseConfig);
@@ -281,6 +314,28 @@
         const students = {"강유주":"6701","고윤서":"6702","공윤호":"6703","김성민":"6704","김태윤":"6705","나현웅":"6706","류찬혁":"6707","문예린":"6708","박소율":"6709","박채윤":"6710","배예람":"6711","백한율":"6712","우은서":"6713","우진서":"6714","윤소영":"6715","임소윤":"6716","임수현":"6717","정시후":"6718","조수빈":"6719","최리한":"6720","최은수":"6721","최준성":"6722","하예준":"6723","허단":"6724"};
         let myName = "", targetName = "", chatRef = null, selLoginName = "";
         let allProfiles = {};
+
+        /* [UI 헬퍼 함수] */
+        function showAlert(title, msg, icon = "⚠️") {
+            document.getElementById('alert-title').innerText = title;
+            document.getElementById('alert-msg').innerText = msg;
+            document.getElementById('alert-icon').innerText = icon;
+            document.getElementById('custom-alert-modal').classList.add('active');
+        }
+
+        function showToast(msg) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.innerText = msg;
+            container.appendChild(toast);
+            
+            setTimeout(() => toast.classList.add('show'), 100);
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, 2500);
+        }
 
         function formatTime(timestamp) {
             if(!timestamp) return "";
@@ -342,14 +397,17 @@
 
         async function handleLogin() {
             const pw = document.getElementById('loginPw').value;
-            if(!selLoginName || !pw) return alert("정보를 모두 입력하세요.");
+            if(!selLoginName) return showAlert("선택 미흡", "로그인할 이름을 먼저 선택해주세요.");
+            if(!pw) return showAlert("입력 미흡", "비밀번호를 입력해주세요.");
+
             const snap = await db.ref('profiles/'+selLoginName).once('value');
             const data = snap.val() || { pw: students[selLoginName] };
-            if(data.pw !== pw) return alert("비밀번호가 일치하지 않습니다.");
+            if(data.pw !== pw) return showAlert("로그인 실패", "비밀번호가 일치하지 않습니다. 다시 확인해주세요.");
             
             myName = selLoginName;
             syncProfiles();
             showSection('select-section');
+            showToast(`${myName}님, 환영합니다! ✨`);
         }
 
         function syncProfiles() {
@@ -364,7 +422,7 @@
         }
 
         function confirmChatStart() {
-            if(!targetName) return alert("상대를 선택하세요.");
+            if(!targetName) return showAlert("상대 선택", "누구와 대화하고 싶나요? 상대를 선택해주세요.");
             const roomId = [myName, targetName].sort().join("_");
             chatRef = db.ref('chats/'+roomId);
             
@@ -388,7 +446,6 @@
                     const m = child.val();
                     const isMe = m.sender === myName;
                     
-                    // 날짜 구분선 로직
                     const currentDate = new Date(m.time).toDateString();
                     if(currentDate !== lastDate) {
                         const divider = document.createElement('div');
@@ -460,7 +517,7 @@
             const update = { img: img };
             if(pw.trim()) update.pw = pw;
             db.ref('profiles/'+myName).update(update).then(() => {
-                alert("정보가 저장되었습니다.");
+                showToast("정보가 안전하게 저장되었습니다. ✅");
                 closeModal('mypage-modal');
             });
         }
@@ -485,7 +542,8 @@
                 const reader = new FileReader();
                 reader.onload = e => sendMsg(e.target.result);
                 reader.readAsDataURL(input.files[0]);
-                input.value = ""; // 초기화
+                input.value = ""; 
+                showToast("이미지를 전송 중입니다...");
             }
         }
 
@@ -501,9 +559,10 @@
                         data: e.target.result
                     };
                     sendMsg(null, fileObj);
+                    showToast("파일을 전송했습니다.");
                 };
                 reader.readAsDataURL(file);
-                input.value = ""; // 초기화
+                input.value = "";
             }
         }
 
@@ -512,7 +571,6 @@
             document.getElementById(id).classList.add('active');
         }
         function closeModal(id) { document.getElementById(id).classList.remove('active'); }
-        function openSchedList() { alert("예약 목록은 준비 중입니다."); }
     </script>
 </body>
 </html>
