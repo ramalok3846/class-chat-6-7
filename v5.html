@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>6-7반 톡톡 v5</title>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <style>
+        :root { 
+            --p-main: #6a1b9a; --p-dark: #4a148c; --p-mid: #9c27b0; --p-light: #f3e5f5; 
+            --white: #ffffff; --gray: #f0f0f5; --shadow: 0 10px 30px rgba(0,0,0,0.1);
+            --accent: #9c27b0; --danger: #e91e63;
+        }
+        * { box-sizing: border-box; transition: all 0.2s ease; font-family: 'Pretendard', -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
+        
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; background: var(--gray); overflow: hidden; position: fixed; }
+
+        /* 상단 시계 */
+        .global-clock {
+            position: fixed; top: 15px; font-size: 13px; font-weight: 800; color: var(--p-main); z-index: 1000;
+            background: rgba(255,255,255,0.9); padding: 8px 18px; border-radius: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            backdrop-filter: blur(10px); border: 1px solid var(--p-light);
+        }
+        .clock-left { left: 20px; }
+        .clock-center { left: 50%; transform: translateX(-50%); }
+
+        .section { display: none; height: 100%; width: 100%; flex-direction: column; justify-content: center; align-items: center; padding: 20px; }
+        .active { display: flex !important; }
+
+        #chat-section { padding: 0; justify-content: flex-start; }
+
+        .card { 
+            background: var(--white); padding: 30px; border-radius: 35px; box-shadow: var(--shadow); 
+            width: 100%; max-width: 420px; text-align: center; border: 1px solid rgba(255,255,255,0.8);
+        }
+
+        /* 채팅 모드 스위치 */
+        .mode-switch { display: flex; background: #eee; border-radius: 20px; padding: 4px; margin-bottom: 20px; position: relative; }
+        .mode-option { flex: 1; padding: 10px; font-size: 14px; font-weight: 700; cursor: pointer; z-index: 2; color: #777; }
+        .mode-option.active { color: var(--p-main); }
+        .mode-slider {
+            position: absolute; top: 4px; left: 4px; width: calc(50% - 4px); height: calc(100% - 8px);
+            background: white; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); transition: transform 0.3s ease;
+        }
+        .group-mode .mode-slider { transform: translateX(100%); }
+
+        /* 아바타 */
+        .avatar-wrap { position: relative; width: 100px; height: 100px; margin: 0 auto 20px; }
+        .avatar-circle {
+            width: 100%; height: 100%; border-radius: 50%; background: #eee; 
+            display: flex; justify-content: center; align-items: center; border: 4px solid var(--white);
+            box-shadow: 0 8px 20px rgba(106, 27, 154, 0.15); overflow: hidden;
+        }
+        .avatar-circle img { width: 100%; height: 100%; object-fit: cover; }
+        .avatar-small { width: 36px; height: 36px; margin-right: 10px; border-radius: 50%; overflow: hidden; border: 2px solid #fff; }
+
+        .input-group { text-align: left; margin-bottom: 15px; width: 100%; }
+        .select-label { font-size: 13px; color: var(--p-main); font-weight: 700; margin-bottom: 6px; display: block; padding-left: 5px; }
+        .custom-input, .select-box {
+            width: 100%; padding: 15px; border-radius: 18px; border: 2px solid var(--p-light);
+            font-size: 15px; outline: none; background: #fafafa; cursor: pointer;
+        }
+
+        /* 채팅 레이아웃 */
+        .chat-header {
+            width: 100%; background: var(--p-main); color: white; padding: 15px 20px; display: flex; 
+            justify-content: space-between; align-items: center; z-index: 10; padding-top: env(safe-area-inset-top, 15px);
+        }
+        
+        #chat-display { flex: 1; width: 100%; max-width: 800px; overflow-y: auto; padding: 20px 0; display: flex; flex-direction: column; }
+
+        /* 날짜 구분선 */
+        .date-divider { text-align: center; margin: 20px 0; font-size: 11px; color: #999; font-weight: 700; position: relative; }
+        .date-divider::before { content: ""; position: absolute; left: 20px; right: 20px; top: 50%; height: 1px; background: #eee; z-index: -1; }
+        .date-divider span { background: var(--gray); padding: 0 15px; }
+
+        /* 메시지 */
+        .msg-row { display: flex; max-width: 88%; align-items: flex-end; margin-bottom: 20px; padding: 0 15px; position: relative; }
+        .msg-row.me { align-self: flex-end; flex-direction: row-reverse; }
+        
+        .bubble-container { display: flex; flex-direction: column; align-items: flex-start; max-width: 100%; position: relative; }
+        .me .bubble-container { align-items: flex-end; }
+
+        .bubble { 
+            padding: 11px 15px; border-radius: 18px; font-size: 14px; line-height: 1.5;
+            background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.05); position: relative; word-break: break-all;
+        }
+        .bubble a { color: inherit; text-decoration: underline; }
+        .me .bubble { background: var(--p-main); color: white; border-bottom-right-radius: 4px; }
+        .other .bubble { border-bottom-left-radius: 4px; }
+        .bubble img { max-width: 200px; border-radius: 10px; display: block; margin-top: 5px; cursor: pointer; }
+
+        /* 호버 시 삭제 버튼 */
+        .del-btn { 
+            font-size: 10px; color: var(--p-main); margin-top: 4px; cursor: pointer; font-weight: 800; 
+            opacity: 0; visibility: hidden; background: var(--p-light); padding: 3px 8px; border-radius: 10px;
+        }
+        .msg-row:hover .del-btn, .msg-row:active .del-btn { opacity: 1; visibility: visible; }
+        .me .del-btn { display: block; }
+        .other .del-btn { display: none; }
+
+        .msg-info { display: flex; flex-direction: column; align-items: flex-end; margin: 0 5px 2px; }
+        .me .msg-info { align-items: flex-start; }
+        .read-status { font-size: 11px; color: var(--p-main); font-weight: 800; margin-bottom: 1px; }
+        .msg-time { font-size: 9px; color: #aaa; white-space: nowrap; }
+
+        .input-wrap { width: 100%; background: white; padding: 10px 15px 25px; border-top: 1px solid #eee; display: flex; flex-direction: column; gap: 10px; }
+        .main-input-row { display: flex; gap: 8px; align-items: center; max-width: 800px; width: 100%; margin: 0 auto; }
+        #msgInput { flex: 1; padding: 12px 18px; border-radius: 25px; border: 1.5px solid #eee; background: #f9f9fb; font-size: 15px; outline: none; }
+        #sendBtn { background: var(--p-main); color: white; border: none; padding: 11px 18px; border-radius: 20px; font-weight: 800; }
+
+        /* 모달 */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5);
+            display: none; justify-content: center; align-items: center; z-index: 3000; backdrop-filter: blur(4px);
+        }
+        .modal-content { background: #fff; border-radius: 30px; padding: 25px; width: 90%; max-width: 380px; max-height: 80vh; overflow-y: auto; position: relative; }
+        
+        #name-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+        .name-btn {
+            background: var(--p-light); border: none; padding: 10px 2px; border-radius: 10px;
+            font-size: 12px; font-weight: 700; color: var(--p-dark); cursor: pointer;
+        }
+        .name-btn.selected { background: var(--p-main); color: white; }
+
+        .action-btn { padding: 15px; border-radius: 20px; border: none; background: var(--p-main); color: #fff; font-weight: 800; cursor: pointer; width: 100%; }
+        .sub-btn { padding: 12px; border-radius: 15px; border: none; background: #f0f0f5; color: #555; font-weight: 700; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div id="clock-display" class="global-clock clock-left"></div>
+
+    <!-- 로그인 -->
+    <div id="login-section" class="section active">
+        <div class="card">
+            <h2 style="color:var(--p-main); margin-bottom:25px;">6-7반 비밀 톡톡 🔒</h2>
+            <div class="input-group">
+                <span class="select-label">내 이름 선택</span>
+                <div class="select-box" onclick="openNameModal('login')">
+                    <span id="login-name-text">목록에서 선택</span>
+                </div>
+            </div>
+            <div class="input-group">
+                <span class="select-label">비밀번호</span>
+                <input type="password" id="loginPw" class="custom-input" placeholder="초기 비번: 번호4자리">
+            </div>
+            <button class="action-btn" onclick="handleLogin()">시작하기</button>
+        </div>
+    </div>
+
+    <!-- 홈 / 대화상대 선택 -->
+    <div id="select-section" class="section">
+        <div class="card">
+            <div id="chat-mode-container" class="mode-switch">
+                <div class="mode-slider"></div>
+                <div id="mode-1on1" class="mode-option active" onclick="setChatMode('1on1')">1:1 채팅</div>
+                <div id="mode-group" class="mode-option" onclick="setChatMode('group')">그룹 채팅</div>
+            </div>
+            
+            <div class="avatar-wrap">
+                <div class="avatar-circle"><img id="home-avatar" src="" onerror="this.src='https://cdn-icons-png.flaticon.com/512/149/149071.png'"></div>
+            </div>
+            <h3 id="home-welcome">환영합니다!</h3>
+            
+            <div class="input-group">
+                <span class="select-label" id="target-label">대화 상대 선택</span>
+                <div class="select-box" onclick="openNameModal('target')">
+                    <span id="target-name-text">상대를 선택하세요</span>
+                </div>
+            </div>
+            
+            <button class="action-btn" onclick="confirmChatStart()">채팅방 입장</button>
+            <div style="display:flex; gap:8px; margin-top:12px;">
+                <button class="sub-btn" style="flex:1" onclick="openMyPage()">설정</button>
+                <button class="sub-btn" style="flex:1" onclick="location.reload()">로그아웃</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 채팅방 -->
+    <div id="chat-section" class="section">
+        <header class="chat-header">
+            <div id="chat-title" style="display:flex; align-items:center; font-weight:800;"></div>
+            <button onclick="exitChat()" class="sub-btn" style="background:rgba(255,255,255,0.2); color:white; padding:6px 12px;">닫기</button>
+        </header>
+        <div id="chat-display"></div>
+        <div class="input-wrap">
+            <div style="display:flex; gap:8px;">
+                <button class="sub-btn" onclick="triggerImg()">📸</button>
+                <button class="sub-btn" onclick="triggerFile()">📎</button>
+                <input type="file" id="chatImgInput" style="display:none" accept="image/*" onchange="uploadChatImg(this)">
+                <input type="file" id="chatFileInput" style="display:none" onchange="uploadChatFile(this)">
+            </div>
+            <div class="main-input-row">
+                <input type="text" id="msgInput" placeholder="메시지 입력..." onkeypress="if(event.keyCode==13) sendMsg()">
+                <button id="sendBtn" onclick="sendMsg()">전송</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 공용 모달들 -->
+    <div id="name-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h4 id="name-modal-title" style="margin:0 0 15px; text-align:center;">이름 선택</h4>
+            <div id="name-grid"></div>
+            <div id="group-confirm-area" style="display:none; margin-top:15px;">
+                <button class="action-btn" onclick="closeModal('name-modal')">선택 완료</button>
+            </div>
+            <button class="sub-btn" style="width:100%; margin-top:10px;" onclick="closeModal('name-modal')">취소</button>
+        </div>
+    </div>
+
+    <div id="img-menu-modal" class="modal-overlay">
+        <div class="modal-content" style="text-align:center;">
+            <h4 style="margin-top:0;">이미지 저장</h4>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+                <button class="action-btn" id="img-down-btn" style="background:var(--p-main);">이미지 다운로드</button>
+                <button class="sub-btn" onclick="closeModal('img-menu-modal')">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="del-modal" class="modal-overlay">
+        <div class="modal-content" style="text-align:center;">
+            <h4>메시지 삭제</h4>
+            <p style="font-size:14px; color:#666;">정말 이 메시지를 삭제할까요?</p>
+            <div style="display:flex; gap:10px;">
+                <button class="action-btn" style="background:var(--danger);" onclick="deleteMsgFinal()">삭제</button>
+                <button class="sub-btn" style="flex:1;" onclick="closeModal('del-modal')">취소</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="mypage-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h3 style="margin-top:0;">마이페이지</h3>
+            <input type="file" id="profileInput" style="display:none" onchange="previewProfile(this)">
+            <button class="sub-btn" style="width:100%; margin-bottom:15px;" onclick="document.getElementById('profileInput').click()">사진 변경</button>
+            <input type="text" id="newPw" class="custom-input" placeholder="새 비밀번호 (비우면 유지)">
+            <div style="display:flex; gap:10px; margin-top:15px;">
+                <button class="action-btn" style="flex:1" onclick="saveMyInfo()">저장</button>
+                <button class="sub-btn" style="flex:1" onclick="closeModal('mypage-modal')">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = { databaseURL: "https://class-chat-6-7-default-rtdb.asia-southeast1.firebasedatabase.app/" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        const students = {"강유주":"6701","고윤서":"6702","공윤호":"6703","김성민":"6704","김태윤":"6705","나현웅":"6706","류찬혁":"6707","문예린":"6708","박소율":"6709","박채윤":"6710","배예람":"6711","백한율":"6712","우은서":"6713","우진서":"6714","윤소영":"6715","임소윤":"6716","임수현":"6717","정시후":"6718","조수빈":"6719","최리한":"6720","최은수":"6721","최준성":"6722","하예준":"6723","허단":"6724"};
+        let myName = "", targetNames = [], chatMode = "1on1", currentRoomId = "", chatRef = null, selLoginName = "", allProfiles = {};
+        let currentDelKey = null;
+
+        // 시계 및 12시간제 변환
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            let hours = date.getHours();
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const ampm = hours >= 12 ? '오후' : '오전';
+            hours = hours % 12 || 12;
+            return `${ampm} ${hours}:${minutes}`;
+        }
+
+        setInterval(() => {
+            const now = new Date();
+            const days = ["일","월","화","수","목","금","토"];
+            const timeStr = `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}(${days[now.getDay()]}) ${formatTime(now)}`;
+            document.getElementById('clock-display').innerText = timeStr;
+        }, 1000);
+
+        // 링크 자동 변환
+        function linkify(text) {
+            const urlPattern = /(https?:\/\/[^\s]+)/g;
+            return text.replace(urlPattern, url => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`);
+        }
+
+        function setChatMode(mode) {
+            chatMode = mode;
+            targetNames = [];
+            document.getElementById('target-name-text').innerText = "상대를 선택하세요";
+            document.getElementById('chat-mode-container').className = mode === 'group' ? 'mode-switch group-mode' : 'mode-switch';
+            document.getElementById('mode-1on1').className = mode === '1on1' ? 'mode-option active' : 'mode-option';
+            document.getElementById('mode-group').className = mode === 'group' ? 'mode-option active' : 'mode-option';
+            document.getElementById('target-label').innerText = mode === 'group' ? "그룹 대화 상대 선택 (복수 가능)" : "대화 상대 선택";
+        }
+
+        function openNameModal(type) {
+            const grid = document.getElementById('name-grid');
+            grid.innerHTML = "";
+            document.getElementById('group-confirm-area').style.display = (type === 'target' && chatMode === 'group') ? 'block' : 'none';
+            Object.keys(students).sort().forEach(name => {
+                if(type === 'target' && name === myName) return;
+                const btn = document.createElement('button');
+                btn.className = "name-btn";
+                if(type === 'target' && targetNames.includes(name)) btn.classList.add('selected');
+                btn.innerText = name;
+                btn.onclick = () => {
+                    if(type === 'login') {
+                        selLoginName = name;
+                        document.getElementById('login-name-text').innerText = name;
+                        closeModal('name-modal');
+                    } else {
+                        if(chatMode === '1on1') {
+                            targetNames = [name];
+                            document.getElementById('target-name-text').innerText = name;
+                            closeModal('name-modal');
+                        } else {
+                            if(targetNames.includes(name)) targetNames = targetNames.filter(n => n !== name);
+                            else targetNames.push(name);
+                            btn.classList.toggle('selected');
+                            document.getElementById('target-name-text').innerText = targetNames.length > 0 ? targetNames.join(", ") : "상대를 선택하세요";
+                        }
+                    }
+                };
+                grid.appendChild(btn);
+            });
+            document.getElementById('name-modal').classList.add('active');
+        }
+
+        async function handleLogin() {
+            const pw = document.getElementById('loginPw').value;
+            if(!selLoginName) return alert("이름을 선택하세요.");
+            const snap = await db.ref('profiles/'+selLoginName).once('value');
+            const data = snap.val() || { pw: students[selLoginName] };
+            if(data.pw !== pw) return alert("비밀번호가 틀렸습니다.");
+            myName = selLoginName;
+            syncProfiles();
+            showSection('select-section');
+        }
+
+        function syncProfiles() {
+            db.ref('profiles').on('value', snap => {
+                allProfiles = snap.val() || {};
+                const myData = allProfiles[myName] || {};
+                document.getElementById('home-avatar').src = myData.img || '';
+                document.getElementById('home-welcome').innerText = `${myName}님 환영합니다!`;
+            });
+        }
+
+        function confirmChatStart() {
+            if(targetNames.length === 0) return alert("상대를 선택하세요.");
+            const roomNames = [myName, ...targetNames].sort();
+            currentRoomId = roomNames.join("_");
+            chatRef = db.ref('chats/'+currentRoomId);
+            
+            let titleHtml = "";
+            if(chatMode === '1on1') {
+                const tImg = (allProfiles[targetNames[0]]?.img) || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
+                titleHtml = `<img src="${tImg}" class="avatar-small"> ${targetNames[0]}`;
+            } else {
+                titleHtml = `👥 그룹채팅 (${targetNames.length+1}명)`;
+            }
+            document.getElementById('chat-title').innerHTML = titleHtml;
+            document.getElementById('clock-display').className = "global-clock clock-center";
+            showSection('chat-section');
+            
+            db.ref(`rooms/${currentRoomId}/online/${myName}`).set(true);
+            db.ref(`rooms/${currentRoomId}/online/${myName}`).onDisconnect().remove();
+
+            listenMsgs();
+        }
+
+        function listenMsgs() {
+            chatRef.off();
+            chatRef.on('value', snap => {
+                const display = document.getElementById('chat-display');
+                display.innerHTML = "";
+                let lastDate = "";
+                
+                db.ref(`rooms/${currentRoomId}/online`).once('value', onlineSnap => {
+                    const onlineUsers = Object.keys(onlineSnap.val() || {});
+                    const totalTargetCount = targetNames.length;
+
+                    snap.forEach(child => {
+                        const m = child.val();
+                        const key = child.key;
+                        const isMe = m.sender === myName;
+                        const msgDate = new Date(m.time).toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric', weekday:'long' });
+                        
+                        // 날짜 구분선
+                        if(msgDate !== lastDate) {
+                            const div = document.createElement('div');
+                            div.className = "date-divider";
+                            div.innerHTML = `<span>${msgDate}</span>`;
+                            display.appendChild(div);
+                            lastDate = msgDate;
+                        }
+
+                        // 읽음 숫자 계산
+                        // 접속 인원수에 따른 남은 인원수 표시
+                        let readNum = m.initialCount - onlineUsers.filter(u => u !== m.sender).length;
+                        if(readNum < 0) readNum = 0;
+                        const readText = readNum > 0 ? readNum : "";
+
+                        const row = document.createElement('div');
+                        row.className = `msg-row ${isMe ? 'me' : 'other'}`;
+                        const sImg = (allProfiles[m.sender]?.img) || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
+                        
+                        let contentHtml = "";
+                        if(m.img) contentHtml += `<img src="${m.img}" onclick="openImgMenu('${m.img}')">`;
+                        if(m.file) contentHtml += `<div style="font-size:12px; padding:5px; background:#eee; border-radius:8px; cursor:pointer;" onclick="downloadData('${m.file.data}', '${m.file.name}')">📎 ${m.file.name}</div>`;
+                        if(m.text) contentHtml += `<div>${linkify(m.text)}</div>`;
+
+                        row.innerHTML = `
+                            ${isMe ? '' : `<img src="${sImg}" class="avatar-small">`}
+                            <div class="bubble-container">
+                                <div class="bubble">${contentHtml}</div>
+                                ${isMe ? `<div class="del-btn" onclick="reqDel('${key}')">삭제</div>` : ''}
+                            </div>
+                            <div class="msg-info">
+                                <div class="read-status">${readText}</div>
+                                <div class="msg-time">${formatTime(m.time)}</div>
+                            </div>
+                        `;
+                        display.appendChild(row);
+                    });
+                    display.scrollTop = display.scrollHeight;
+                });
+            });
+        }
+
+        function downloadData(data, name) {
+            const a = document.createElement('a');
+            a.href = data;
+            a.download = name;
+            a.click();
+        }
+
+        function openImgMenu(url) {
+            document.getElementById('img-down-btn').onclick = () => { downloadData(url, "image.png"); closeModal('img-menu-modal'); };
+            document.getElementById('img-menu-modal').classList.add('active');
+        }
+
+        function reqDel(key) { currentDelKey = key; document.getElementById('del-modal').classList.add('active'); }
+        function deleteMsgFinal() {
+            if(currentDelKey && chatRef) {
+                chatRef.child(currentDelKey).remove();
+                closeModal('del-modal');
+            }
+        }
+
+        async function sendMsg(imgData = null, fileObj = null) {
+            const input = document.getElementById('msgInput');
+            const text = input.value.trim();
+            if(!text && !imgData && !fileObj) return;
+
+            const time = Date.now();
+            const initialCount = targetNames.length; 
+
+            const msgObj = {
+                sender: myName,
+                text: text,
+                img: imgData,
+                file: fileObj,
+                time: time,
+                initialCount: initialCount 
+            };
+
+            // 현재 방에 전송
+            chatRef.push(msgObj);
+
+            // 그룹 채팅일 경우 각 인원과의 1:1 방에도 복사 전송
+            if(chatMode === 'group') {
+                targetNames.forEach(target => {
+                    const room1on1 = [myName, target].sort().join("_");
+                    db.ref('chats/'+room1on1).push({
+                        ...msgObj,
+                        initialCount: 1, // 1:1방에서는 1명만 읽으면 됨
+                        fromGroup: currentRoomId
+                    });
+                });
+            }
+
+            input.value = "";
+        }
+
+        function exitChat() {
+            db.ref(`rooms/${currentRoomId}/online/${myName}`).remove();
+            if(chatRef) chatRef.off();
+            document.getElementById('clock-display').className = "global-clock clock-left";
+            showSection('select-section');
+        }
+
+        function triggerImg() { document.getElementById('chatImgInput').click(); }
+        function uploadChatImg(input) {
+            if(input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = e => sendMsg(e.target.result);
+                reader.readAsDataURL(input.files[0]);
+                input.value = "";
+            }
+        }
+        function triggerFile() { document.getElementById('chatFileInput').click(); }
+        function uploadChatFile(input) {
+            if(input.files && input.files[0]) {
+                const f = input.files[0];
+                const reader = new FileReader();
+                reader.onload = e => sendMsg(null, {name: f.name, data: e.target.result});
+                reader.readAsDataURL(f);
+                input.value = "";
+            }
+        }
+
+        function openMyPage() { document.getElementById('mypage-modal').classList.add('active'); }
+        function saveMyInfo() {
+            const pw = document.getElementById('newPw').value;
+            const update = {};
+            if(pw) update.pw = pw;
+            const img = document.getElementById('home-avatar').src;
+            if(img) update.img = img;
+            db.ref('profiles/'+myName).update(update).then(() => { alert("저장됨"); closeModal('mypage-modal'); });
+        }
+        function previewProfile(input) {
+            if(input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = e => { document.getElementById('home-avatar').src = e.target.result; };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        function showSection(id) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+        }
+        function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+    </script>
+</body>
+</html>
