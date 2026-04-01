@@ -3,30 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>6-7반 톡톡 v5</title>
+    <title>6-7반 톡톡 v5.5</title>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
     <style>
         :root { 
             --p-main: #6a1b9a; --p-dark: #4a148c; --p-mid: #9c27b0; --p-light: #f3e5f5; 
             --white: #ffffff; --gray: #f0f0f5; --shadow: 0 10px 30px rgba(0,0,0,0.1);
-            --accent: #9c27b0; --danger: #e91e63;
+            --danger: #ff5252;
         }
         * { box-sizing: border-box; transition: all 0.2s ease; font-family: 'Pretendard', -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
         
         body, html { margin: 0; padding: 0; height: 100%; width: 100%; background: var(--gray); overflow: hidden; position: fixed; }
 
-        /* 상단 시계 */
+        /* 글로벌 시계 */
         .global-clock {
             position: fixed; top: 15px; font-size: 13px; font-weight: 800; color: var(--p-main); z-index: 1000;
-            background: rgba(255,255,255,0.9); padding: 8px 18px; border-radius: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            background: rgba(255,255,255,0.92); padding: 8px 18px; border-radius: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.08);
             backdrop-filter: blur(10px); border: 1px solid var(--p-light);
         }
         .clock-left { left: 20px; }
         .clock-center { left: 50%; transform: translateX(-50%); }
 
-        .section { display: none; height: 100%; width: 100%; flex-direction: column; justify-content: center; align-items: center; padding: 20px; }
-        .active { display: flex !important; }
+        /* 로딩 레이어 */
+        #loading-overlay {
+            position: fixed; top:0; left:0; width:100%; height:100%; background: var(--white);
+            z-index: 9999; display: none; flex-direction: column; justify-content: center; align-items: center;
+        }
+        .spinner { width: 40px; height: 40px; border: 4px solid var(--p-light); border-top: 4px solid var(--p-main); border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .section { display: none; height: 100%; width: 100%; flex-direction: column; justify-content: center; align-items: center; padding: 20px; opacity: 0; }
+        .active { display: flex !important; opacity: 1; }
 
         #chat-section { padding: 0; justify-content: flex-start; }
 
@@ -41,7 +49,7 @@
         .mode-option.active { color: var(--p-main); }
         .mode-slider {
             position: absolute; top: 4px; left: 4px; width: calc(50% - 4px); height: calc(100% - 8px);
-            background: white; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); transition: transform 0.3s ease;
+            background: white; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .group-mode .mode-slider { transform: translateX(100%); }
 
@@ -53,8 +61,9 @@
             box-shadow: 0 8px 20px rgba(106, 27, 154, 0.15); overflow: hidden;
         }
         .avatar-circle img { width: 100%; height: 100%; object-fit: cover; }
-        .avatar-small { width: 36px; height: 36px; margin-right: 10px; border-radius: 50%; overflow: hidden; border: 2px solid #fff; }
+        .avatar-small { width: 36px; height: 36px; margin-right: 10px; border-radius: 50%; overflow: hidden; border: 2px solid #fff; flex-shrink: 0; }
 
+        /* 입력 폼 */
         .input-group { text-align: left; margin-bottom: 15px; width: 100%; }
         .select-label { font-size: 13px; color: var(--p-main); font-weight: 700; margin-bottom: 6px; display: block; padding-left: 5px; }
         .custom-input, .select-box {
@@ -70,13 +79,8 @@
         
         #chat-display { flex: 1; width: 100%; max-width: 800px; overflow-y: auto; padding: 20px 0; display: flex; flex-direction: column; }
 
-        /* 날짜 구분선 */
-        .date-divider { text-align: center; margin: 20px 0; font-size: 11px; color: #999; font-weight: 700; position: relative; }
-        .date-divider::before { content: ""; position: absolute; left: 20px; right: 20px; top: 50%; height: 1px; background: #eee; z-index: -1; }
-        .date-divider span { background: var(--gray); padding: 0 15px; }
-
-        /* 메시지 */
-        .msg-row { display: flex; max-width: 88%; align-items: flex-end; margin-bottom: 20px; padding: 0 15px; position: relative; }
+        /* 메시지 및 삭제 버튼 로직 */
+        .msg-row { display: flex; max-width: 88%; align-items: flex-end; margin-bottom: 25px; padding: 0 15px; position: relative; }
         .msg-row.me { align-self: flex-end; flex-direction: row-reverse; }
         
         .bubble-container { display: flex; flex-direction: column; align-items: flex-start; max-width: 100%; position: relative; }
@@ -86,36 +90,36 @@
             padding: 11px 15px; border-radius: 18px; font-size: 14px; line-height: 1.5;
             background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.05); position: relative; word-break: break-all;
         }
-        .bubble a { color: inherit; text-decoration: underline; }
         .me .bubble { background: var(--p-main); color: white; border-bottom-right-radius: 4px; }
         .other .bubble { border-bottom-left-radius: 4px; }
-        .bubble img { max-width: 200px; border-radius: 10px; display: block; margin-top: 5px; cursor: pointer; }
-
-        /* 호버 시 삭제 버튼 */
-        .del-btn { 
-            font-size: 10px; color: var(--p-main); margin-top: 4px; cursor: pointer; font-weight: 800; 
-            opacity: 0; visibility: hidden; background: var(--p-light); padding: 3px 8px; border-radius: 10px;
+        
+        /* 삭제 버튼 (호버 시 등장) */
+        .delete-trigger-btn {
+            opacity: 0; pointer-events: none;
+            background: rgba(255, 82, 82, 0.1); color: var(--danger); border: none;
+            padding: 4px 10px; border-radius: 10px; font-size: 11px; font-weight: 800;
+            margin-top: 5px; cursor: pointer; transform: translateY(-5px);
         }
-        .msg-row:hover .del-btn, .msg-row:active .del-btn { opacity: 1; visibility: visible; }
-        .me .del-btn { display: block; }
-        .other .del-btn { display: none; }
+        .msg-row.me:hover .delete-trigger-btn { opacity: 1; pointer-events: auto; transform: translateY(0); }
 
         .msg-info { display: flex; flex-direction: column; align-items: flex-end; margin: 0 5px 2px; }
         .me .msg-info { align-items: flex-start; }
-        .read-status { font-size: 11px; color: var(--p-main); font-weight: 800; margin-bottom: 1px; }
+        .read-status { font-size: 11px; color: var(--p-main); font-weight: 800; margin-bottom: 1px; min-height: 14px; }
         .msg-time { font-size: 9px; color: #aaa; white-space: nowrap; }
 
         .input-wrap { width: 100%; background: white; padding: 10px 15px 25px; border-top: 1px solid #eee; display: flex; flex-direction: column; gap: 10px; }
         .main-input-row { display: flex; gap: 8px; align-items: center; max-width: 800px; width: 100%; margin: 0 auto; }
         #msgInput { flex: 1; padding: 12px 18px; border-radius: 25px; border: 1.5px solid #eee; background: #f9f9fb; font-size: 15px; outline: none; }
-        #sendBtn { background: var(--p-main); color: white; border: none; padding: 11px 18px; border-radius: 20px; font-weight: 800; }
+        #sendBtn { background: var(--p-main); color: white; border: none; padding: 11px 22px; border-radius: 20px; font-weight: 800; }
 
-        /* 모달 */
+        /* 모달 시스템 */
         .modal-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5);
-            display: none; justify-content: center; align-items: center; z-index: 3000; backdrop-filter: blur(4px);
+            display: none; justify-content: center; align-items: center; z-index: 5000; backdrop-filter: blur(4px);
         }
-        .modal-content { background: #fff; border-radius: 30px; padding: 25px; width: 90%; max-width: 380px; max-height: 80vh; overflow-y: auto; position: relative; }
+        .modal-overlay.active { display: flex; }
+        .modal-content { background: #fff; border-radius: 30px; padding: 25px; width: 90%; max-width: 380px; position: relative; animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes pop { from { opacity:0; transform: scale(0.9); } to { opacity:1; transform: scale(1); } }
         
         #name-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
         .name-btn {
@@ -125,17 +129,25 @@
         .name-btn.selected { background: var(--p-main); color: white; }
 
         .action-btn { padding: 15px; border-radius: 20px; border: none; background: var(--p-main); color: #fff; font-weight: 800; cursor: pointer; width: 100%; }
+        .danger-btn { padding: 15px; border-radius: 20px; border: none; background: var(--danger); color: #fff; font-weight: 800; cursor: pointer; width: 100%; }
         .sub-btn { padding: 12px; border-radius: 15px; border: none; background: #f0f0f5; color: #555; font-weight: 700; cursor: pointer; }
     </style>
 </head>
 <body>
 
+    <!-- 로딩 화면 -->
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <p id="loading-msg" style="margin-top:20px; font-weight:700; color:var(--p-main);">잠시만 기다려주세요...</p>
+    </div>
+
+    <!-- 상단 시계 -->
     <div id="clock-display" class="global-clock clock-left"></div>
 
-    <!-- 로그인 -->
+    <!-- 로그인 섹션 -->
     <div id="login-section" class="section active">
         <div class="card">
-            <h2 style="color:var(--p-main); margin-bottom:25px;">6-7반 비밀 톡톡 🔒</h2>
+            <h2 style="color:var(--p-main); margin-bottom:25px;">6-7반 비밀 톡톡 v5.5 🔒</h2>
             <div class="input-group">
                 <span class="select-label">내 이름 선택</span>
                 <div class="select-box" onclick="openNameModal('login')">
@@ -144,13 +156,13 @@
             </div>
             <div class="input-group">
                 <span class="select-label">비밀번호</span>
-                <input type="password" id="loginPw" class="custom-input" placeholder="초기 비번: 번호4자리">
+                <input type="password" id="loginPw" class="custom-input" placeholder="비밀번호 4자리" onkeypress="if(event.keyCode==13) handleLogin()">
             </div>
-            <button class="action-btn" onclick="handleLogin()">시작하기</button>
+            <button class="action-btn" onclick="handleLogin()">로그인</button>
         </div>
     </div>
 
-    <!-- 홈 / 대화상대 선택 -->
+    <!-- 홈 섹션 -->
     <div id="select-section" class="section">
         <div class="card">
             <div id="chat-mode-container" class="mode-switch">
@@ -174,12 +186,12 @@
             <button class="action-btn" onclick="confirmChatStart()">채팅방 입장</button>
             <div style="display:flex; gap:8px; margin-top:12px;">
                 <button class="sub-btn" style="flex:1" onclick="openMyPage()">설정</button>
-                <button class="sub-btn" style="flex:1" onclick="location.reload()">로그아웃</button>
+                <button class="sub-btn" style="flex:1" onclick="startLogout()">로그아웃</button>
             </div>
         </div>
     </div>
 
-    <!-- 채팅방 -->
+    <!-- 채팅방 섹션 -->
     <div id="chat-section" class="section">
         <header class="chat-header">
             <div id="chat-title" style="display:flex; align-items:center; font-weight:800;"></div>
@@ -187,20 +199,25 @@
         </header>
         <div id="chat-display"></div>
         <div class="input-wrap">
-            <div style="display:flex; gap:8px;">
-                <button class="sub-btn" onclick="triggerImg()">📸</button>
-                <button class="sub-btn" onclick="triggerFile()">📎</button>
-                <input type="file" id="chatImgInput" style="display:none" accept="image/*" onchange="uploadChatImg(this)">
-                <input type="file" id="chatFileInput" style="display:none" onchange="uploadChatFile(this)">
-            </div>
             <div class="main-input-row">
+                <button class="sub-btn" onclick="triggerFile()" style="border-radius:50%; width:44px; height:44px; padding:0;">📎</button>
+                <input type="file" id="chatFileInput" style="display:none" onchange="uploadChatFile(this)">
                 <input type="text" id="msgInput" placeholder="메시지 입력..." onkeypress="if(event.keyCode==13) sendMsg()">
                 <button id="sendBtn" onclick="sendMsg()">전송</button>
             </div>
         </div>
     </div>
 
-    <!-- 공용 모달들 -->
+    <!-- [공통 안내 모달] -->
+    <div id="alert-modal" class="modal-overlay">
+        <div class="modal-content" style="text-align:center;">
+            <h4 id="alert-title" style="margin:0 0 10px;">안내</h4>
+            <p id="alert-msg" style="font-size:14px; color:#666; margin-bottom:20px;"></p>
+            <button class="action-btn" onclick="closeModal('alert-modal')">확인</button>
+        </div>
+    </div>
+
+    <!-- [이름 선택 모달] -->
     <div id="name-modal" class="modal-overlay">
         <div class="modal-content">
             <h4 id="name-modal-title" style="margin:0 0 15px; text-align:center;">이름 선택</h4>
@@ -212,37 +229,33 @@
         </div>
     </div>
 
-    <div id="img-menu-modal" class="modal-overlay">
-        <div class="modal-content" style="text-align:center;">
-            <h4 style="margin-top:0;">이미지 저장</h4>
-            <div style="display:flex; flex-direction:column; gap:10px;">
-                <button class="action-btn" id="img-down-btn" style="background:var(--p-main);">이미지 다운로드</button>
-                <button class="sub-btn" onclick="closeModal('img-menu-modal')">닫기</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="del-modal" class="modal-overlay">
-        <div class="modal-content" style="text-align:center;">
-            <h4>메시지 삭제</h4>
-            <p style="font-size:14px; color:#666;">정말 이 메시지를 삭제할까요?</p>
-            <div style="display:flex; gap:10px;">
-                <button class="action-btn" style="background:var(--danger);" onclick="deleteMsgFinal()">삭제</button>
-                <button class="sub-btn" style="flex:1;" onclick="closeModal('del-modal')">취소</button>
-            </div>
-        </div>
-    </div>
-
+    <!-- [프로필 설정 모달] -->
     <div id="mypage-modal" class="modal-overlay">
         <div class="modal-content">
-            <h3 style="margin-top:0;">마이페이지</h3>
-            <input type="file" id="profileInput" style="display:none" onchange="previewProfile(this)">
-            <button class="sub-btn" style="width:100%; margin-bottom:15px;" onclick="document.getElementById('profileInput').click()">사진 변경</button>
-            <input type="text" id="newPw" class="custom-input" placeholder="새 비밀번호 (비우면 유지)">
-            <div style="display:flex; gap:10px; margin-top:15px;">
-                <button class="action-btn" style="flex:1" onclick="saveMyInfo()">저장</button>
-                <button class="sub-btn" style="flex:1" onclick="closeModal('mypage-modal')">닫기</button>
+            <h4 style="margin:0 0 20px; text-align:center;">프로필 설정</h4>
+            <div style="text-align:center;">
+                <div style="width:100px; height:100px; border-radius:50%; border:3px solid var(--p-main); margin:0 auto 10px; overflow:hidden; cursor:pointer;" onclick="document.getElementById('editImgInput').click()">
+                    <img id="edit-avatar-preview" src="" style="width:100%; height:100%; object-fit:cover;" onerror="this.src='https://cdn-icons-png.flaticon.com/512/149/149071.png'">
+                </div>
+                <input type="file" id="editImgInput" style="display:none" accept="image/*" onchange="previewEditImg(this)">
+                <p style="font-size:11px; color:#888;">클릭하여 이미지 변경</p>
             </div>
+            <div class="input-group">
+                <span class="select-label">비밀번호 변경 (4자리)</span>
+                <input type="password" id="editPw" class="custom-input" maxlength="4">
+            </div>
+            <button class="action-btn" onclick="saveMyPage()">저장</button>
+            <button class="sub-btn" style="width:100%; margin-top:10px;" onclick="closeModal('mypage-modal')">닫기</button>
+        </div>
+    </div>
+
+    <!-- [삭제 확인 모달] -->
+    <div id="delete-modal" class="modal-overlay">
+        <div class="modal-content" style="text-align:center;">
+            <h4 style="margin:0 0 10px;">메시지 삭제</h4>
+            <p style="font-size:14px; color:#666; margin-bottom:20px;">삭제하면 상대방에게도 보이지 않습니다.</p>
+            <button class="danger-btn" id="confirmDeleteBtn">삭제하기</button>
+            <button class="sub-btn" style="width:100%; margin-top:10px;" onclick="closeModal('delete-modal')">취소</button>
         </div>
     </div>
 
@@ -253,39 +266,34 @@
 
         const students = {"강유주":"6701","고윤서":"6702","공윤호":"6703","김성민":"6704","김태윤":"6705","나현웅":"6706","류찬혁":"6707","문예린":"6708","박소율":"6709","박채윤":"6710","배예람":"6711","백한율":"6712","우은서":"6713","우진서":"6714","윤소영":"6715","임소윤":"6716","임수현":"6717","정시후":"6718","조수빈":"6719","최리한":"6720","최은수":"6721","최준성":"6722","하예준":"6723","허단":"6724"};
         let myName = "", targetNames = [], chatMode = "1on1", currentRoomId = "", chatRef = null, selLoginName = "", allProfiles = {};
-        let currentDelKey = null;
+        let pendingDeleteId = null;
 
-        // 시계 및 12시간제 변환
-        function formatTime(timestamp) {
-            const date = new Date(timestamp);
-            let hours = date.getHours();
-            const minutes = String(date.getMinutes()).padStart(2, '0');
+        // 시계 업데이트 (2026년 04월 01일 수요일 오전 10:31:40 형식)
+        function updateClock() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const weekDays = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
+            const weekDay = weekDays[now.getDay()];
+            
+            let hours = now.getHours();
             const ampm = hours >= 12 ? '오후' : '오전';
             hours = hours % 12 || 12;
-            return `${ampm} ${hours}:${minutes}`;
+            const h = String(hours).padStart(2, '0');
+            const m = String(now.getMinutes()).padStart(2, '0');
+            const s = String(now.getSeconds()).padStart(2, '0');
+
+            const clockStr = `${year}년 ${month}월 ${day}일 ${weekDay} ${ampm} ${h}:${m}:${s}`;
+            document.getElementById('clock-display').innerText = clockStr;
         }
+        setInterval(updateClock, 1000);
+        updateClock();
 
-        setInterval(() => {
-            const now = new Date();
-            const days = ["일","월","화","수","목","금","토"];
-            const timeStr = `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}(${days[now.getDay()]}) ${formatTime(now)}`;
-            document.getElementById('clock-display').innerText = timeStr;
-        }, 1000);
-
-        // 링크 자동 변환
-        function linkify(text) {
-            const urlPattern = /(https?:\/\/[^\s]+)/g;
-            return text.replace(urlPattern, url => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`);
-        }
-
-        function setChatMode(mode) {
-            chatMode = mode;
-            targetNames = [];
-            document.getElementById('target-name-text').innerText = "상대를 선택하세요";
-            document.getElementById('chat-mode-container').className = mode === 'group' ? 'mode-switch group-mode' : 'mode-switch';
-            document.getElementById('mode-1on1').className = mode === '1on1' ? 'mode-option active' : 'mode-option';
-            document.getElementById('mode-group').className = mode === 'group' ? 'mode-option active' : 'mode-option';
-            document.getElementById('target-label').innerText = mode === 'group' ? "그룹 대화 상대 선택 (복수 가능)" : "대화 상대 선택";
+        function showAppAlert(title, msg) {
+            document.getElementById('alert-title').innerText = title;
+            document.getElementById('alert-msg').innerText = msg;
+            document.getElementById('alert-modal').classList.add('active');
         }
 
         function openNameModal(type) {
@@ -322,11 +330,17 @@
         }
 
         async function handleLogin() {
-            const pw = document.getElementById('loginPw').value;
-            if(!selLoginName) return alert("이름을 선택하세요.");
+            if(!selLoginName) return showAppAlert("알림", "이름을 먼저 선택해주세요.");
+            const pwInput = document.getElementById('loginPw');
+            const pw = pwInput.value;
+            
             const snap = await db.ref('profiles/'+selLoginName).once('value');
             const data = snap.val() || { pw: students[selLoginName] };
-            if(data.pw !== pw) return alert("비밀번호가 틀렸습니다.");
+            
+            if(data.pw !== pw) {
+                return showAppAlert("인증 실패", "비밀번호가 일치하지 않습니다.");
+            }
+            
             myName = selLoginName;
             syncProfiles();
             showSection('select-section');
@@ -337,12 +351,34 @@
                 allProfiles = snap.val() || {};
                 const myData = allProfiles[myName] || {};
                 document.getElementById('home-avatar').src = myData.img || '';
-                document.getElementById('home-welcome').innerText = `${myName}님 환영합니다!`;
+                document.getElementById('home-welcome').innerText = `${myName}님, 반갑습니다! 👋`;
             });
         }
 
+        function startLogout() {
+            const loading = document.getElementById('loading-overlay');
+            const msg = document.getElementById('loading-msg');
+            msg.innerText = "안전하게 로그아웃 중입니다...";
+            loading.style.display = 'flex';
+            
+            setTimeout(() => {
+                location.reload();
+            }, 1500);
+        }
+
+        function setChatMode(mode) {
+            chatMode = mode;
+            targetNames = [];
+            document.getElementById('target-name-text').innerText = "상대를 선택하세요";
+            document.getElementById('chat-mode-container').className = mode === 'group' ? 'mode-switch group-mode' : 'mode-switch';
+            document.getElementById('mode-1on1').className = mode === '1on1' ? 'mode-option active' : 'mode-option';
+            document.getElementById('mode-group').className = mode === 'group' ? 'mode-option active' : 'mode-option';
+            document.getElementById('target-label').innerText = mode === 'group' ? "그룹 대화 상대 선택" : "대화 상대 선택";
+        }
+
         function confirmChatStart() {
-            if(targetNames.length === 0) return alert("상대를 선택하세요.");
+            if(targetNames.length === 0) return showAppAlert("알림", "대화 상대를 한 명 이상 선택해주세요.");
+            
             const roomNames = [myName, ...targetNames].sort();
             currentRoomId = roomNames.join("_");
             chatRef = db.ref('chats/'+currentRoomId);
@@ -360,7 +396,6 @@
             
             db.ref(`rooms/${currentRoomId}/online/${myName}`).set(true);
             db.ref(`rooms/${currentRoomId}/online/${myName}`).onDisconnect().remove();
-
             listenMsgs();
         }
 
@@ -369,29 +404,15 @@
             chatRef.on('value', snap => {
                 const display = document.getElementById('chat-display');
                 display.innerHTML = "";
-                let lastDate = "";
                 
                 db.ref(`rooms/${currentRoomId}/online`).once('value', onlineSnap => {
                     const onlineUsers = Object.keys(onlineSnap.val() || {});
-                    const totalTargetCount = targetNames.length;
 
                     snap.forEach(child => {
                         const m = child.val();
                         const key = child.key;
                         const isMe = m.sender === myName;
-                        const msgDate = new Date(m.time).toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric', weekday:'long' });
                         
-                        // 날짜 구분선
-                        if(msgDate !== lastDate) {
-                            const div = document.createElement('div');
-                            div.className = "date-divider";
-                            div.innerHTML = `<span>${msgDate}</span>`;
-                            display.appendChild(div);
-                            lastDate = msgDate;
-                        }
-
-                        // 읽음 숫자 계산
-                        // 접속 인원수에 따른 남은 인원수 표시
                         let readNum = m.initialCount - onlineUsers.filter(u => u !== m.sender).length;
                         if(readNum < 0) readNum = 0;
                         const readText = readNum > 0 ? readNum : "";
@@ -401,15 +422,21 @@
                         const sImg = (allProfiles[m.sender]?.img) || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
                         
                         let contentHtml = "";
-                        if(m.img) contentHtml += `<img src="${m.img}" onclick="openImgMenu('${m.img}')">`;
-                        if(m.file) contentHtml += `<div style="font-size:12px; padding:5px; background:#eee; border-radius:8px; cursor:pointer;" onclick="downloadData('${m.file.data}', '${m.file.name}')">📎 ${m.file.name}</div>`;
-                        if(m.text) contentHtml += `<div>${linkify(m.text)}</div>`;
+                        if(m.img) contentHtml += `<img src="${m.img}" style="max-width:200px; border-radius:10px; display:block;">`;
+                        if(m.file) {
+                            if(m.file.type && m.file.type.startsWith('image/')) {
+                                contentHtml += `<img src="${m.file.data}" style="max-width:200px; border-radius:10px; display:block;">`;
+                            } else {
+                                contentHtml += `<div style="font-size:12px; padding:8px; background:#f0f0f5; border-radius:8px; color:var(--p-dark); font-weight:700;">📎 ${m.file.name}</div>`;
+                            }
+                        }
+                        if(m.text) contentHtml += `<div>${m.text}</div>`;
 
                         row.innerHTML = `
                             ${isMe ? '' : `<img src="${sImg}" class="avatar-small">`}
                             <div class="bubble-container">
                                 <div class="bubble">${contentHtml}</div>
-                                ${isMe ? `<div class="del-btn" onclick="reqDel('${key}')">삭제</div>` : ''}
+                                ${isMe ? `<button class="delete-trigger-btn" onclick="openDeleteModal('${key}')">삭제</button>` : ''}
                             </div>
                             <div class="msg-info">
                                 <div class="read-status">${readText}</div>
@@ -423,59 +450,88 @@
             });
         }
 
-        function downloadData(data, name) {
-            const a = document.createElement('a');
-            a.href = data;
-            a.download = name;
-            a.click();
+        function openDeleteModal(msgKey) {
+            pendingDeleteId = msgKey;
+            document.getElementById('delete-modal').classList.add('active');
         }
 
-        function openImgMenu(url) {
-            document.getElementById('img-down-btn').onclick = () => { downloadData(url, "image.png"); closeModal('img-menu-modal'); };
-            document.getElementById('img-menu-modal').classList.add('active');
-        }
-
-        function reqDel(key) { currentDelKey = key; document.getElementById('del-modal').classList.add('active'); }
-        function deleteMsgFinal() {
-            if(currentDelKey && chatRef) {
-                chatRef.child(currentDelKey).remove();
-                closeModal('del-modal');
+        document.getElementById('confirmDeleteBtn').onclick = async function() {
+            if(!pendingDeleteId) return;
+            const snap = await chatRef.child(pendingDeleteId).once('value');
+            const msgData = snap.val();
+            if(msgData && chatMode === 'group') {
+                targetNames.forEach(async (target) => {
+                    const room1on1Id = [myName, target].sort().join("_");
+                    const subRef = db.ref('chats/' + room1on1Id);
+                    const subSnap = await subRef.once('value');
+                    subSnap.forEach(child => {
+                        const subMsg = child.val();
+                        if(subMsg.time === msgData.time && subMsg.sender === myName) child.ref.remove();
+                    });
+                });
             }
-        }
+            await chatRef.child(pendingDeleteId).remove();
+            closeModal('delete-modal');
+        };
 
-        async function sendMsg(imgData = null, fileObj = null) {
+        function sendMsg(imgData = null, fileObj = null) {
             const input = document.getElementById('msgInput');
             const text = input.value.trim();
             if(!text && !imgData && !fileObj) return;
 
             const time = Date.now();
-            const initialCount = targetNames.length; 
-
             const msgObj = {
                 sender: myName,
                 text: text,
                 img: imgData,
                 file: fileObj,
                 time: time,
-                initialCount: initialCount 
+                initialCount: targetNames.length 
             };
 
-            // 현재 방에 전송
             chatRef.push(msgObj);
-
-            // 그룹 채팅일 경우 각 인원과의 1:1 방에도 복사 전송
             if(chatMode === 'group') {
                 targetNames.forEach(target => {
-                    const room1on1 = [myName, target].sort().join("_");
-                    db.ref('chats/'+room1on1).push({
-                        ...msgObj,
-                        initialCount: 1, // 1:1방에서는 1명만 읽으면 됨
-                        fromGroup: currentRoomId
-                    });
+                    const room1on1Id = [myName, target].sort().join("_");
+                    db.ref('chats/' + room1on1Id).push({...msgObj, initialCount: 1});
                 });
             }
-
             input.value = "";
+        }
+
+        function triggerFile() { document.getElementById('chatFileInput').click(); }
+        function uploadChatFile(input) {
+            if(input.files && input.files[0]) {
+                const f = input.files[0];
+                const reader = new FileReader();
+                reader.onload = e => sendMsg(null, {name: f.name, type: f.type, data: e.target.result});
+                reader.readAsDataURL(f);
+                input.value = "";
+            }
+        }
+
+        function openMyPage() {
+            const myData = allProfiles[myName] || { pw: students[myName] };
+            document.getElementById('edit-avatar-preview').src = myData.img || '';
+            document.getElementById('editPw').value = myData.pw || students[myName];
+            document.getElementById('mypage-modal').classList.add('active');
+        }
+
+        function previewEditImg(input) {
+            if(input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = e => document.getElementById('edit-avatar-preview').src = e.target.result;
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        async function saveMyPage() {
+            const newPw = document.getElementById('editPw').value;
+            const newImg = document.getElementById('edit-avatar-preview').src;
+            if(newPw.length < 4) return showAppAlert("알림", "비밀번호는 4자리여야 합니다.");
+            await db.ref('profiles/'+myName).set({ pw: newPw, img: newImg });
+            showAppAlert("성공", "프로필 정보가 업데이트되었습니다.");
+            closeModal('mypage-modal');
         }
 
         function exitChat() {
@@ -485,41 +541,12 @@
             showSection('select-section');
         }
 
-        function triggerImg() { document.getElementById('chatImgInput').click(); }
-        function uploadChatImg(input) {
-            if(input.files && input.files[0]) {
-                const reader = new FileReader();
-                reader.onload = e => sendMsg(e.target.result);
-                reader.readAsDataURL(input.files[0]);
-                input.value = "";
-            }
-        }
-        function triggerFile() { document.getElementById('chatFileInput').click(); }
-        function uploadChatFile(input) {
-            if(input.files && input.files[0]) {
-                const f = input.files[0];
-                const reader = new FileReader();
-                reader.onload = e => sendMsg(null, {name: f.name, data: e.target.result});
-                reader.readAsDataURL(f);
-                input.value = "";
-            }
-        }
-
-        function openMyPage() { document.getElementById('mypage-modal').classList.add('active'); }
-        function saveMyInfo() {
-            const pw = document.getElementById('newPw').value;
-            const update = {};
-            if(pw) update.pw = pw;
-            const img = document.getElementById('home-avatar').src;
-            if(img) update.img = img;
-            db.ref('profiles/'+myName).update(update).then(() => { alert("저장됨"); closeModal('mypage-modal'); });
-        }
-        function previewProfile(input) {
-            if(input.files && input.files[0]) {
-                const reader = new FileReader();
-                reader.onload = e => { document.getElementById('home-avatar').src = e.target.result; };
-                reader.readAsDataURL(input.files[0]);
-            }
+        function formatTime(ts) {
+            const date = new Date(ts);
+            let h = date.getHours();
+            const ampm = h >= 12 ? '오후' : '오전';
+            h = h % 12 || 12;
+            return `${ampm} ${h}:${String(date.getMinutes()).padStart(2, '0')}`;
         }
 
         function showSection(id) {
