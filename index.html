@@ -2,558 +2,427 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>6-7반 톡톡 v5.5</title>
-    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>퍼플톡 6-7 버전 관리</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        :root { 
-            --p-main: #6a1b9a; --p-dark: #4a148c; --p-mid: #9c27b0; --p-light: #f3e5f5; 
-            --white: #ffffff; --gray: #f0f0f5; --shadow: 0 10px 30px rgba(0,0,0,0.1);
-            --danger: #ff5252;
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+        body {
+            font-family: 'Pretendard', sans-serif;
+            background-color: #f0f2f5;
         }
-        * { box-sizing: border-box; transition: all 0.2s ease; font-family: 'Pretendard', -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
-        
-        body, html { margin: 0; padding: 0; height: 100%; width: 100%; background: var(--gray); overflow: hidden; position: fixed; }
-
-        /* 글로벌 시계 */
-        .global-clock {
-            position: fixed; top: 15px; font-size: 13px; font-weight: 800; color: var(--p-main); z-index: 1000;
-            background: rgba(255,255,255,0.92); padding: 8px 18px; border-radius: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.08);
-            backdrop-filter: blur(10px); border: 1px solid var(--p-light);
+        .purple-gradient {
+            background: linear-gradient(135deg, #6d28d9 0%, #4c1d95 100%);
         }
-        .clock-left { left: 20px; }
-        .clock-center { left: 50%; transform: translateX(-50%); }
-
-        /* 로딩 레이어 */
-        #loading-overlay {
-            position: fixed; top:0; left:0; width:100%; height:100%; background: var(--white);
-            z-index: 9999; display: none; flex-direction: column; justify-content: center; align-items: center;
+        .glass-morphism {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
-        .spinner { width: 40px; height: 40px; border: 4px solid var(--p-light); border-top: 4px solid var(--p-main); border-radius: 50%; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-        .section { display: none; height: 100%; width: 100%; flex-direction: column; justify-content: center; align-items: center; padding: 20px; opacity: 0; }
-        .active { display: flex !important; opacity: 1; }
-
-        #chat-section { padding: 0; justify-content: flex-start; }
-
-        .card { 
-            background: var(--white); padding: 30px; border-radius: 35px; box-shadow: var(--shadow); 
-            width: 100%; max-width: 420px; text-align: center; border: 1px solid rgba(255,255,255,0.8);
+        .admin-panel {
+            display: none;
+            animation: slideUp 0.3s ease-out;
         }
-
-        /* 채팅 모드 스위치 */
-        .mode-switch { display: flex; background: #eee; border-radius: 20px; padding: 4px; margin-bottom: 20px; position: relative; }
-        .mode-option { flex: 1; padding: 10px; font-size: 14px; font-weight: 700; cursor: pointer; z-index: 2; color: #777; }
-        .mode-option.active { color: var(--p-main); }
-        .mode-slider {
-            position: absolute; top: 4px; left: 4px; width: calc(50% - 4px); height: calc(100% - 8px);
-            background: white; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
         }
-        .group-mode .mode-slider { transform: translateX(100%); }
-
-        /* 아바타 */
-        .avatar-wrap { position: relative; width: 100px; height: 100px; margin: 0 auto 20px; }
-        .avatar-circle {
-            width: 100%; height: 100%; border-radius: 50%; background: #eee; 
-            display: flex; justify-content: center; align-items: center; border: 4px solid var(--white);
-            box-shadow: 0 8px 20px rgba(106, 27, 154, 0.15); overflow: hidden;
-        }
-        .avatar-circle img { width: 100%; height: 100%; object-fit: cover; }
-        .avatar-small { width: 36px; height: 36px; margin-right: 10px; border-radius: 50%; overflow: hidden; border: 2px solid #fff; flex-shrink: 0; }
-
-        /* 입력 폼 */
-        .input-group { text-align: left; margin-bottom: 15px; width: 100%; }
-        .select-label { font-size: 13px; color: var(--p-main); font-weight: 700; margin-bottom: 6px; display: block; padding-left: 5px; }
-        .custom-input, .select-box {
-            width: 100%; padding: 15px; border-radius: 18px; border: 2px solid var(--p-light);
-            font-size: 15px; outline: none; background: #fafafa; cursor: pointer;
-        }
-
-        /* 채팅 레이아웃 */
-        .chat-header {
-            width: 100%; background: var(--p-main); color: white; padding: 15px 20px; display: flex; 
-            justify-content: space-between; align-items: center; z-index: 10; padding-top: env(safe-area-inset-top, 15px);
-        }
-        
-        #chat-display { flex: 1; width: 100%; max-width: 800px; overflow-y: auto; padding: 20px 0; display: flex; flex-direction: column; }
-
-        /* 메시지 및 삭제 버튼 로직 */
-        .msg-row { display: flex; max-width: 88%; align-items: flex-end; margin-bottom: 25px; padding: 0 15px; position: relative; }
-        .msg-row.me { align-self: flex-end; flex-direction: row-reverse; }
-        
-        .bubble-container { display: flex; flex-direction: column; align-items: flex-start; max-width: 100%; position: relative; }
-        .me .bubble-container { align-items: flex-end; }
-
-        .bubble { 
-            padding: 11px 15px; border-radius: 18px; font-size: 14px; line-height: 1.5;
-            background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.05); position: relative; word-break: break-all;
-        }
-        .me .bubble { background: var(--p-main); color: white; border-bottom-right-radius: 4px; }
-        .other .bubble { border-bottom-left-radius: 4px; }
-        
-        /* 삭제 버튼 (호버 시 등장) */
-        .delete-trigger-btn {
-            opacity: 0; pointer-events: none;
-            background: rgba(255, 82, 82, 0.1); color: var(--danger); border: none;
-            padding: 4px 10px; border-radius: 10px; font-size: 11px; font-weight: 800;
-            margin-top: 5px; cursor: pointer; transform: translateY(-5px);
-        }
-        .msg-row.me:hover .delete-trigger-btn { opacity: 1; pointer-events: auto; transform: translateY(0); }
-
-        .msg-info { display: flex; flex-direction: column; align-items: flex-end; margin: 0 5px 2px; }
-        .me .msg-info { align-items: flex-start; }
-        .read-status { font-size: 11px; color: var(--p-main); font-weight: 800; margin-bottom: 1px; min-height: 14px; }
-        .msg-time { font-size: 9px; color: #aaa; white-space: nowrap; }
-
-        .input-wrap { width: 100%; background: white; padding: 10px 15px 25px; border-top: 1px solid #eee; display: flex; flex-direction: column; gap: 10px; }
-        .main-input-row { display: flex; gap: 8px; align-items: center; max-width: 800px; width: 100%; margin: 0 auto; }
-        #msgInput { flex: 1; padding: 12px 18px; border-radius: 25px; border: 1.5px solid #eee; background: #f9f9fb; font-size: 15px; outline: none; }
-        #sendBtn { background: var(--p-main); color: white; border: none; padding: 11px 22px; border-radius: 20px; font-weight: 800; }
-
-        /* 모달 시스템 */
-        .modal-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5);
-            display: none; justify-content: center; align-items: center; z-index: 5000; backdrop-filter: blur(4px);
-        }
-        .modal-overlay.active { display: flex; }
-        .modal-content { background: #fff; border-radius: 30px; padding: 25px; width: 90%; max-width: 380px; position: relative; animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-        @keyframes pop { from { opacity:0; transform: scale(0.9); } to { opacity:1; transform: scale(1); } }
-        
-        #name-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-        .name-btn {
-            background: var(--p-light); border: none; padding: 10px 2px; border-radius: 10px;
-            font-size: 12px; font-weight: 700; color: var(--p-dark); cursor: pointer;
-        }
-        .name-btn.selected { background: var(--p-main); color: white; }
-
-        .action-btn { padding: 15px; border-radius: 20px; border: none; background: var(--p-main); color: #fff; font-weight: 800; cursor: pointer; width: 100%; }
-        .danger-btn { padding: 15px; border-radius: 20px; border: none; background: var(--danger); color: #fff; font-weight: 800; cursor: pointer; width: 100%; }
-        .sub-btn { padding: 12px; border-radius: 15px; border: none; background: #f0f0f5; color: #555; font-weight: 700; cursor: pointer; }
     </style>
 </head>
-<body>
+<body class="min-h-screen flex flex-col">
 
-    <!-- 로딩 화면 -->
-    <div id="loading-overlay">
-        <div class="spinner"></div>
-        <p id="loading-msg" style="margin-top:20px; font-weight:700; color:var(--p-main);">잠시만 기다려주세요...</p>
+<!-- 초기 접속 환경 선택 화면 -->
+<div id="env-selector" class="fixed inset-0 z-[100] bg-white flex flex-center items-center justify-center p-6">
+    <div class="text-center max-w-md w-full">
+        <div class="w-20 h-20 bg-violet-600 rounded-3xl mx-auto mb-6 flex items-center justify-center shadow-lg">
+            <span class="text-white text-4xl font-bold">P</span>
+        </div>
+        <h1 class="text-2xl font-bold text-gray-800 mb-2">접속 환경 선택</h1>
+        <p class="text-gray-500 mb-8 text-sm">기기에 최적화된 화면을 제공합니다.</p>
+        <div class="grid grid-cols-2 gap-4">
+            <button onclick="setEnvironment('pc')" class="p-6 border-2 border-gray-100 rounded-2xl hover:border-violet-500 hover:bg-violet-50 transition-all group">
+                <div class="text-4xl mb-2 group-hover:scale-110 transition">💻</div>
+                <div class="font-bold">PC</div>
+            </button>
+            <button onclick="setEnvironment('mobile')" class="p-6 border-2 border-gray-100 rounded-2xl hover:border-violet-500 hover:bg-violet-50 transition-all group">
+                <div class="text-4xl mb-2 group-hover:scale-110 transition">📱</div>
+                <div class="font-bold">모바일</div>
+            </button>
+        </div>
     </div>
+</div>
 
-    <!-- 상단 시계 -->
-    <div id="clock-display" class="global-clock clock-left"></div>
+<!-- 메인 앱 인터페이스 -->
+<div id="main-app" class="hidden flex-1 flex flex-col">
+    <!-- 상단 바 -->
+    <header class="p-4 flex justify-between items-center bg-white border-b sticky top-0 z-10 shadow-sm">
+        <div id="current-time" class="text-sm font-medium text-gray-600">시간 로딩 중...</div>
+        <button onclick="openAdminAuth()" class="text-xs bg-violet-50 text-violet-600 border border-violet-200 px-3 py-1.5 rounded-full hover:bg-violet-100 transition">관리자 모드</button>
+    </header>
 
-    <!-- 로그인 섹션 -->
-    <div id="login-section" class="section active">
-        <div class="card">
-            <h2 style="color:var(--p-main); margin-bottom:25px;">6-7반 비밀 톡톡 v5.5 🔒</h2>
-            <div class="input-group">
-                <span class="select-label">내 이름 선택</span>
-                <div class="select-box" onclick="openNameModal('login')">
-                    <span id="login-name-text">목록에서 선택</span>
-                </div>
+    <div id="content-wrapper" class="flex-1 p-4 max-w-4xl mx-auto w-full">
+        <div class="mb-8 mt-4 flex justify-between items-end">
+            <div>
+                <h2 class="text-3xl font-black text-violet-800 mb-1 italic tracking-tight">PURPLE TALK</h2>
+                <p class="text-gray-500 text-sm">사용하실 버전을 선택하여 접속하세요.</p>
             </div>
-            <div class="input-group">
-                <span class="select-label">비밀번호</span>
-                <input type="password" id="loginPw" class="custom-input" placeholder="비밀번호 4자리" onkeypress="if(event.keyCode==13) handleLogin()">
-            </div>
-            <button class="action-btn" onclick="handleLogin()">로그인</button>
+            <div id="loading-indicator" class="text-sm text-violet-500 animate-pulse hidden">데이터 동기화 중...</div>
+        </div>
+
+        <!-- 버전 버튼 컨테이너 -->
+        <div id="version-grid" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div class="col-span-full py-20 text-center text-gray-400">데이터를 불러오는 중입니다...</div>
         </div>
     </div>
 
-    <!-- 홈 섹션 -->
-    <div id="select-section" class="section">
-        <div class="card">
-            <div id="chat-mode-container" class="mode-switch">
-                <div class="mode-slider"></div>
-                <div id="mode-1on1" class="mode-option active" onclick="setChatMode('1on1')">1:1 채팅</div>
-                <div id="mode-group" class="mode-option" onclick="setChatMode('group')">그룹 채팅</div>
+    <!-- 하단 관리자 추가 패널 -->
+    <div id="admin-panel" class="admin-panel fixed bottom-0 left-0 right-0 glass-morphism border-t shadow-2xl p-6 z-40 rounded-t-3xl">
+        <div class="max-w-xl mx-auto relative">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="font-bold text-lg text-violet-900 flex items-center gap-2">
+                    <span class="bg-violet-100 p-1.5 rounded-lg">⚙️</span> 새 버전 링크 추가
+                </h3>
+                <button onclick="closeAdmin()" class="w-8 h-8 flex items-center justify-center bg-gray-100 text-gray-500 rounded-full hover:bg-gray-200 transition">×</button>
             </div>
             
-            <div class="avatar-wrap">
-                <div class="avatar-circle"><img id="home-avatar" src="" onerror="this.src='https://cdn-icons-png.flaticon.com/512/149/149071.png'"></div>
-            </div>
-            <h3 id="home-welcome">환영합니다!</h3>
-            
-            <div class="input-group">
-                <span class="select-label" id="target-label">대화 상대 선택</span>
-                <div class="select-box" onclick="openNameModal('target')">
-                    <span id="target-name-text">상대를 선택하세요</span>
-                </div>
-            </div>
-            
-            <button class="action-btn" onclick="confirmChatStart()">채팅방 입장</button>
-            <div style="display:flex; gap:8px; margin-top:12px;">
-                <button class="sub-btn" style="flex:1" onclick="openMyPage()">설정</button>
-                <button class="sub-btn" style="flex:1" onclick="startLogout()">로그아웃</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- 채팅방 섹션 -->
-    <div id="chat-section" class="section">
-        <header class="chat-header">
-            <div id="chat-title" style="display:flex; align-items:center; font-weight:800;"></div>
-            <button onclick="exitChat()" class="sub-btn" style="background:rgba(255,255,255,0.2); color:white; padding:6px 12px;">닫기</button>
-        </header>
-        <div id="chat-display"></div>
-        <div class="input-wrap">
-            <div class="main-input-row">
-                <button class="sub-btn" onclick="triggerFile()" style="border-radius:50%; width:44px; height:44px; padding:0;">📎</button>
-                <input type="file" id="chatFileInput" style="display:none" onchange="uploadChatFile(this)">
-                <input type="text" id="msgInput" placeholder="메시지 입력..." onkeypress="if(event.keyCode==13) sendMsg()">
-                <button id="sendBtn" onclick="sendMsg()">전송</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- [공통 안내 모달] -->
-    <div id="alert-modal" class="modal-overlay">
-        <div class="modal-content" style="text-align:center;">
-            <h4 id="alert-title" style="margin:0 0 10px;">안내</h4>
-            <p id="alert-msg" style="font-size:14px; color:#666; margin-bottom:20px;"></p>
-            <button class="action-btn" onclick="closeModal('alert-modal')">확인</button>
-        </div>
-    </div>
-
-    <!-- [이름 선택 모달] -->
-    <div id="name-modal" class="modal-overlay">
-        <div class="modal-content">
-            <h4 id="name-modal-title" style="margin:0 0 15px; text-align:center;">이름 선택</h4>
-            <div id="name-grid"></div>
-            <div id="group-confirm-area" style="display:none; margin-top:15px;">
-                <button class="action-btn" onclick="closeModal('name-modal')">선택 완료</button>
-            </div>
-            <button class="sub-btn" style="width:100%; margin-top:10px;" onclick="closeModal('name-modal')">취소</button>
-        </div>
-    </div>
-
-    <!-- [프로필 설정 모달] -->
-    <div id="mypage-modal" class="modal-overlay">
-        <div class="modal-content">
-            <h4 style="margin:0 0 20px; text-align:center;">프로필 설정</h4>
-            <div style="text-align:center;">
-                <div style="width:100px; height:100px; border-radius:50%; border:3px solid var(--p-main); margin:0 auto 10px; overflow:hidden; cursor:pointer;" onclick="document.getElementById('editImgInput').click()">
-                    <img id="edit-avatar-preview" src="" style="width:100%; height:100%; object-fit:cover;" onerror="this.src='https://cdn-icons-png.flaticon.com/512/149/149071.png'">
-                </div>
-                <input type="file" id="editImgInput" style="display:none" accept="image/*" onchange="previewEditImg(this)">
-                <p style="font-size:11px; color:#888;">클릭하여 이미지 변경</p>
-            </div>
-            <div class="input-group">
-                <span class="select-label">비밀번호 변경 (4자리)</span>
-                <input type="password" id="editPw" class="custom-input" maxlength="4">
-            </div>
-            <button class="action-btn" onclick="saveMyPage()">저장</button>
-            <button class="sub-btn" style="width:100%; margin-top:10px;" onclick="closeModal('mypage-modal')">닫기</button>
-        </div>
-    </div>
-
-    <!-- [삭제 확인 모달] -->
-    <div id="delete-modal" class="modal-overlay">
-        <div class="modal-content" style="text-align:center;">
-            <h4 style="margin:0 0 10px;">메시지 삭제</h4>
-            <p style="font-size:14px; color:#666; margin-bottom:20px;">삭제하면 상대방에게도 보이지 않습니다.</p>
-            <button class="danger-btn" id="confirmDeleteBtn">삭제하기</button>
-            <button class="sub-btn" style="width:100%; margin-top:10px;" onclick="closeModal('delete-modal')">취소</button>
-        </div>
-    </div>
-
-    <script>
-        const firebaseConfig = { databaseURL: "https://class-chat-6-7-default-rtdb.asia-southeast1.firebasedatabase.app/" };
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
-
-        const students = {"강유주":"6701","고윤서":"6702","공윤호":"6703","김성민":"6704","김태윤":"6705","나현웅":"6706","류찬혁":"6707","문예린":"6708","박소율":"6709","박채윤":"6710","배예람":"6711","백한율":"6712","우은서":"6713","우진서":"6714","윤소영":"6715","임소윤":"6716","임수현":"6717","정시후":"6718","조수빈":"6719","최리한":"6720","최은수":"6721","최준성":"6722","하예준":"6723","허단":"6724"};
-        let myName = "", targetNames = [], chatMode = "1on1", currentRoomId = "", chatRef = null, selLoginName = "", allProfiles = {};
-        let pendingDeleteId = null;
-
-        // 시계 업데이트 (2026년 04월 01일 수요일 오전 10:31:40 형식)
-        function updateClock() {
-            const now = new Date();
-            const year = now.getFullYear();
-            const month = String(now.getMonth() + 1).padStart(2, '0');
-            const day = String(now.getDate()).padStart(2, '0');
-            const weekDays = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
-            const weekDay = weekDays[now.getDay()];
-            
-            let hours = now.getHours();
-            const ampm = hours >= 12 ? '오후' : '오전';
-            hours = hours % 12 || 12;
-            const h = String(hours).padStart(2, '0');
-            const m = String(now.getMinutes()).padStart(2, '0');
-            const s = String(now.getSeconds()).padStart(2, '0');
-
-            const clockStr = `${year}년 ${month}월 ${day}일 ${weekDay} ${ampm} ${h}:${m}:${s}`;
-            document.getElementById('clock-display').innerText = clockStr;
-        }
-        setInterval(updateClock, 1000);
-        updateClock();
-
-        function showAppAlert(title, msg) {
-            document.getElementById('alert-title').innerText = title;
-            document.getElementById('alert-msg').innerText = msg;
-            document.getElementById('alert-modal').classList.add('active');
-        }
-
-        function openNameModal(type) {
-            const grid = document.getElementById('name-grid');
-            grid.innerHTML = "";
-            document.getElementById('group-confirm-area').style.display = (type === 'target' && chatMode === 'group') ? 'block' : 'none';
-            Object.keys(students).sort().forEach(name => {
-                if(type === 'target' && name === myName) return;
-                const btn = document.createElement('button');
-                btn.className = "name-btn";
-                if(type === 'target' && targetNames.includes(name)) btn.classList.add('selected');
-                btn.innerText = name;
-                btn.onclick = () => {
-                    if(type === 'login') {
-                        selLoginName = name;
-                        document.getElementById('login-name-text').innerText = name;
-                        closeModal('name-modal');
-                    } else {
-                        if(chatMode === '1on1') {
-                            targetNames = [name];
-                            document.getElementById('target-name-text').innerText = name;
-                            closeModal('name-modal');
-                        } else {
-                            if(targetNames.includes(name)) targetNames = targetNames.filter(n => n !== name);
-                            else targetNames.push(name);
-                            btn.classList.toggle('selected');
-                            document.getElementById('target-name-text').innerText = targetNames.length > 0 ? targetNames.join(", ") : "상대를 선택하세요";
-                        }
-                    }
-                };
-                grid.appendChild(btn);
-            });
-            document.getElementById('name-modal').classList.add('active');
-        }
-
-        async function handleLogin() {
-            if(!selLoginName) return showAppAlert("알림", "이름을 먼저 선택해주세요.");
-            const pwInput = document.getElementById('loginPw');
-            const pw = pwInput.value;
-            
-            const snap = await db.ref('profiles/'+selLoginName).once('value');
-            const data = snap.val() || { pw: students[selLoginName] };
-            
-            if(data.pw !== pw) {
-                return showAppAlert("인증 실패", "비밀번호가 일치하지 않습니다.");
-            }
-            
-            myName = selLoginName;
-            syncProfiles();
-            showSection('select-section');
-        }
-
-        function syncProfiles() {
-            db.ref('profiles').on('value', snap => {
-                allProfiles = snap.val() || {};
-                const myData = allProfiles[myName] || {};
-                document.getElementById('home-avatar').src = myData.img || '';
-                document.getElementById('home-welcome').innerText = `${myName}님, 반갑습니다! 👋`;
-            });
-        }
-
-        function startLogout() {
-            const loading = document.getElementById('loading-overlay');
-            const msg = document.getElementById('loading-msg');
-            msg.innerText = "안전하게 로그아웃 중입니다...";
-            loading.style.display = 'flex';
-            
-            setTimeout(() => {
-                location.reload();
-            }, 1500);
-        }
-
-        function setChatMode(mode) {
-            chatMode = mode;
-            targetNames = [];
-            document.getElementById('target-name-text').innerText = "상대를 선택하세요";
-            document.getElementById('chat-mode-container').className = mode === 'group' ? 'mode-switch group-mode' : 'mode-switch';
-            document.getElementById('mode-1on1').className = mode === '1on1' ? 'mode-option active' : 'mode-option';
-            document.getElementById('mode-group').className = mode === 'group' ? 'mode-option active' : 'mode-option';
-            document.getElementById('target-label').innerText = mode === 'group' ? "그룹 대화 상대 선택" : "대화 상대 선택";
-        }
-
-        function confirmChatStart() {
-            if(targetNames.length === 0) return showAppAlert("알림", "대화 상대를 한 명 이상 선택해주세요.");
-            
-            const roomNames = [myName, ...targetNames].sort();
-            currentRoomId = roomNames.join("_");
-            chatRef = db.ref('chats/'+currentRoomId);
-            
-            let titleHtml = "";
-            if(chatMode === '1on1') {
-                const tImg = (allProfiles[targetNames[0]]?.img) || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
-                titleHtml = `<img src="${tImg}" class="avatar-small"> ${targetNames[0]}`;
-            } else {
-                titleHtml = `👥 그룹채팅 (${targetNames.length+1}명)`;
-            }
-            document.getElementById('chat-title').innerHTML = titleHtml;
-            document.getElementById('clock-display').className = "global-clock clock-center";
-            showSection('chat-section');
-            
-            db.ref(`rooms/${currentRoomId}/online/${myName}`).set(true);
-            db.ref(`rooms/${currentRoomId}/online/${myName}`).onDisconnect().remove();
-            listenMsgs();
-        }
-
-        function listenMsgs() {
-            chatRef.off();
-            chatRef.on('value', snap => {
-                const display = document.getElementById('chat-display');
-                display.innerHTML = "";
+            <div class="space-y-4 overflow-y-auto max-h-[70vh] pb-4">
+                <input type="text" id="v-name" placeholder="버전명 (예: 퍼플톡 6.7.2)" class="w-full p-3.5 border border-gray-200 rounded-xl outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 bg-white">
                 
-                db.ref(`rooms/${currentRoomId}/online`).once('value', onlineSnap => {
-                    const onlineUsers = Object.keys(onlineSnap.val() || {});
+                <div class="flex items-center gap-2 p-3 bg-violet-50 rounded-xl border border-violet-100">
+                    <input type="checkbox" id="use-github" onchange="toggleGithubInputs()" class="w-4 h-4 accent-violet-600 rounded">
+                    <label for="use-github" class="text-sm font-semibold text-violet-800 cursor-pointer select-none">GitHub Pages 자동 링크 생성</label>
+                </div>
 
-                    snap.forEach(child => {
-                        const m = child.val();
-                        const key = child.key;
-                        const isMe = m.sender === myName;
-                        
-                        let readNum = m.initialCount - onlineUsers.filter(u => u !== m.sender).length;
-                        if(readNum < 0) readNum = 0;
-                        const readText = readNum > 0 ? readNum : "";
+                <div id="github-inputs" class="hidden space-y-3 bg-white p-4 rounded-xl border border-gray-100">
+                    <input type="text" id="gh-id" placeholder="GitHub ID" class="w-full p-3 border border-gray-200 rounded-lg outline-none focus:border-violet-500" oninput="updatePreviewLink()">
+                    <input type="text" id="gh-repo" placeholder="Repository Name" class="w-full p-3 border border-gray-200 rounded-lg outline-none focus:border-violet-500" oninput="updatePreviewLink()">
+                    <input type="text" id="gh-html" placeholder="HTML Name (예: index)" class="w-full p-3 border border-gray-200 rounded-lg outline-none focus:border-violet-500" oninput="updatePreviewLink()">
+                    <div class="p-3 bg-gray-50 rounded-lg text-xs text-gray-600 break-all font-mono" id="link-preview">생성될 링크: </div>
+                </div>
 
-                        const row = document.createElement('div');
-                        row.className = `msg-row ${isMe ? 'me' : 'other'}`;
-                        const sImg = (allProfiles[m.sender]?.img) || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
-                        
-                        let contentHtml = "";
-                        if(m.img) contentHtml += `<img src="${m.img}" style="max-width:200px; border-radius:10px; display:block;">`;
-                        if(m.file) {
-                            if(m.file.type && m.file.type.startsWith('image/')) {
-                                contentHtml += `<img src="${m.file.data}" style="max-width:200px; border-radius:10px; display:block;">`;
-                            } else {
-                                contentHtml += `<div style="font-size:12px; padding:8px; background:#f0f0f5; border-radius:8px; color:var(--p-dark); font-weight:700;">📎 ${m.file.name}</div>`;
-                            }
-                        }
-                        if(m.text) contentHtml += `<div>${m.text}</div>`;
+                <div id="manual-input">
+                    <input type="text" id="v-link" placeholder="수동 접속 링크 입력 (https://...)" class="w-full p-3.5 border border-gray-200 rounded-xl outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 bg-white">
+                </div>
 
-                        row.innerHTML = `
-                            ${isMe ? '' : `<img src="${sImg}" class="avatar-small">`}
-                            <div class="bubble-container">
-                                <div class="bubble">${contentHtml}</div>
-                                ${isMe ? `<button class="delete-trigger-btn" onclick="openDeleteModal('${key}')">삭제</button>` : ''}
-                            </div>
-                            <div class="msg-info">
-                                <div class="read-status">${readText}</div>
-                                <div class="msg-time">${formatTime(m.time)}</div>
-                            </div>
-                        `;
-                        display.appendChild(row);
+                <button onclick="saveVersionToFirebase()" class="w-full purple-gradient text-white py-4 rounded-xl font-bold shadow-lg hover:shadow-violet-500/30 transition-shadow">
+                    버전 리스트에 저장
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 비밀번호 모달 -->
+<div id="pw-modal" class="fixed inset-0 bg-gray-900/40 backdrop-blur-sm hidden z-[200] flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl text-center transform transition-all">
+        <div class="w-16 h-16 bg-violet-100 rounded-2xl mx-auto mb-4 flex items-center justify-center text-3xl">🔐</div>
+        <h2 class="text-xl font-bold mb-2 text-gray-800">관리자 인증</h2>
+        <p class="text-sm text-gray-500 mb-6">시스템 관리를 위해 비밀번호를 입력하세요.</p>
+        
+        <input type="password" id="pw-input" class="w-full border-b-2 border-gray-200 text-3xl tracking-[1rem] text-center outline-none focus:border-violet-600 mb-8 pb-2 font-mono" maxlength="6">
+        
+        <div class="flex gap-3">
+            <button onclick="hidePwModal()" class="flex-1 bg-gray-100 text-gray-600 py-3.5 rounded-xl font-bold hover:bg-gray-200 transition">취소</button>
+            <button onclick="verifyPassword()" class="flex-1 purple-gradient text-white py-3.5 rounded-xl font-bold shadow-md">확인</button>
+        </div>
+    </div>
+</div>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+<script>
+    // ==========================================
+    // Firebase 설정
+    // ==========================================
+    const firebaseConfig = {
+        apiKey: "YOUR_API_KEY", // Firebase 콘솔에서 확인 후 입력해주세요. (입력하지 않으면 오류가 발생할 수 있습니다)
+        authDomain: "class-chat-6-7.firebaseapp.com",
+        databaseURL: "https://class-chat-6-7-default-rtdb.asia-southeast1.firebasedatabase.app", // 요청하신 URL 적용 완료
+        projectId: "class-chat-6-7",
+        storageBucket: "class-chat-6-7.appspot.com",
+        messagingSenderId: "YOUR_SENDER_ID",
+        appId: "YOUR_APP_ID"
+    };
+
+    // Firebase 초기화
+    let db;
+    let useFirebase = false;
+
+    try {
+        firebase.initializeApp(firebaseConfig);
+        db = firebase.database();
+        useFirebase = true;
+        console.log("Firebase RTDB 초기화 완료");
+    } catch(e) {
+        console.error("Firebase 초기화 에러:", e);
+    }
+
+    // ==========================================
+    // 앱 로직
+    // ==========================================
+    const ADMIN_PW = "384612";
+    let versions = [];
+    let currentEnv = 'pc';
+
+    // 실시간 시간 업데이트
+    function updateClock() {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const ampm = now.getHours() >= 12 ? '오후' : '오전';
+        let hours = now.getHours() % 12;
+        hours = hours ? hours : 12;
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const seconds = String(now.getSeconds()).padStart(2, '0');
+
+        const timeStr = `${year}년 ${month}월 ${day}일 ${ampm} ${hours}:${minutes}:${seconds}`;
+        document.getElementById('current-time').textContent = timeStr;
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // 환경 설정 (PC/Mobile)
+    function setEnvironment(env) {
+        currentEnv = env;
+        document.getElementById('env-selector').classList.add('hidden');
+        document.getElementById('main-app').classList.remove('hidden');
+        
+        const wrapper = document.getElementById('content-wrapper');
+        const grid = document.getElementById('version-grid');
+        
+        if (env === 'mobile') {
+            wrapper.classList.remove('max-w-4xl');
+            wrapper.classList.add('max-w-md');
+            grid.classList.remove('sm:grid-cols-2', 'lg:grid-cols-3');
+            grid.classList.add('grid-cols-1');
+        }
+        
+        loadPreviousLocalData(); 
+        fetchVersions();
+    }
+
+    // 관리자 모드
+    function openAdminAuth() {
+        document.getElementById('pw-modal').classList.remove('hidden');
+        document.getElementById('pw-input').focus();
+    }
+
+    function hidePwModal() {
+        document.getElementById('pw-modal').classList.add('hidden');
+        document.getElementById('pw-input').value = '';
+    }
+
+    function verifyPassword() {
+        const input = document.getElementById('pw-input').value;
+        if (input === ADMIN_PW) {
+            hidePwModal();
+            document.getElementById('admin-panel').style.display = 'block';
+        } else {
+            alert("비밀번호가 올바르지 않습니다.");
+        }
+    }
+
+    function closeAdmin() {
+        document.getElementById('admin-panel').style.display = 'none';
+    }
+
+    // 깃허브 자동 링크 로직
+    function toggleGithubInputs() {
+        const isGithub = document.getElementById('use-github').checked;
+        document.getElementById('github-inputs').classList.toggle('hidden', !isGithub);
+        document.getElementById('manual-input').classList.toggle('hidden', isGithub);
+    }
+
+    function updatePreviewLink() {
+        const id = document.getElementById('gh-id').value.trim();
+        const repo = document.getElementById('gh-repo').value.trim();
+        const html = document.getElementById('gh-html').value.trim();
+        
+        let link = "";
+        if (id && repo && html) {
+            link = `https://${id}.github.io/${repo}/${html}.html`;
+            document.getElementById('link-preview').textContent = `생성될 링크: ${link}`;
+        } else {
+            document.getElementById('link-preview').textContent = `생성될 링크: 정보 입력 중...`;
+        }
+        return link;
+    }
+
+    // 데이터 불러오기 (Firebase)
+    function fetchVersions() {
+        const indicator = document.getElementById('loading-indicator');
+        indicator.classList.remove('hidden');
+
+        if(useFirebase) {
+            db.ref('versions').on('value', (snapshot) => {
+                indicator.classList.add('hidden');
+                versions = [];
+                const data = snapshot.val();
+                
+                if (data) {
+                    Object.keys(data).forEach(key => {
+                        versions.push({
+                            id: key,
+                            name: data[key].name,
+                            link: data[key].link,
+                            timestamp: data[key].timestamp
+                        });
                     });
-                    display.scrollTop = display.scrollHeight;
-                });
+                    // 최신 버전이 위로 오도록 정렬
+                    versions.sort((a, b) => b.timestamp - a.timestamp);
+                }
+                renderVersions();
+            }, (error) => {
+                console.error("Firebase 읽기 실패. 인증/규칙(Rules)을 확인하세요:", error);
+                indicator.textContent = "데이터 불러오기 실패";
+                fallbackToLocal();
             });
+        } else {
+            fallbackToLocal();
+        }
+    }
+
+    function fallbackToLocal() {
+        const indicator = document.getElementById('loading-indicator');
+        indicator.classList.add('hidden');
+        versions = JSON.parse(localStorage.getItem('pt_versions')) || [];
+        renderVersions();
+    }
+
+    // 데이터 저장하기 (Firebase)
+    function saveVersionToFirebase() {
+        const name = document.getElementById('v-name').value.trim();
+        const isGithub = document.getElementById('use-github').checked;
+        let finalLink = "";
+
+        if (isGithub) {
+            finalLink = updatePreviewLink();
+        } else {
+            finalLink = document.getElementById('v-link').value.trim();
         }
 
-        function openDeleteModal(msgKey) {
-            pendingDeleteId = msgKey;
-            document.getElementById('delete-modal').classList.add('active');
+        if (!name || !finalLink) {
+            alert("버전명과 링크를 모두 입력해주세요.");
+            return;
         }
 
-        document.getElementById('confirmDeleteBtn').onclick = async function() {
-            if(!pendingDeleteId) return;
-            const snap = await chatRef.child(pendingDeleteId).once('value');
-            const msgData = snap.val();
-            if(msgData && chatMode === 'group') {
-                targetNames.forEach(async (target) => {
-                    const room1on1Id = [myName, target].sort().join("_");
-                    const subRef = db.ref('chats/' + room1on1Id);
-                    const subSnap = await subRef.once('value');
-                    subSnap.forEach(child => {
-                        const subMsg = child.val();
-                        if(subMsg.time === msgData.time && subMsg.sender === myName) child.ref.remove();
-                    });
-                });
-            }
-            await chatRef.child(pendingDeleteId).remove();
-            closeModal('delete-modal');
+        // 깃허브 아이디 로컬 보관
+        if (isGithub) {
+            localStorage.setItem('pt_last_gh_id', document.getElementById('gh-id').value.trim());
+        }
+
+        const versionData = {
+            name: name,
+            link: finalLink,
+            timestamp: Date.now()
         };
 
-        function sendMsg(imgData = null, fileObj = null) {
-            const input = document.getElementById('msgInput');
-            const text = input.value.trim();
-            if(!text && !imgData && !fileObj) return;
+        if(useFirebase) {
+            db.ref('versions').push(versionData)
+            .then(() => {
+                closeAdmin();
+                clearInputs();
+            })
+            .catch((error) => {
+                console.error("Firebase 저장 에러:", error);
+                alert("저장에 실패했습니다. Firebase 규칙(Rules)이 true 인지 확인하세요.");
+            });
+        } else {
+            versionData.id = Date.now().toString();
+            versions.unshift(versionData);
+            localStorage.setItem('pt_versions', JSON.stringify(versions));
+            renderVersions();
+            closeAdmin();
+            clearInputs();
+        }
+    }
 
-            const time = Date.now();
-            const msgObj = {
-                sender: myName,
-                text: text,
-                img: imgData,
-                file: fileObj,
-                time: time,
-                initialCount: targetNames.length 
-            };
-
-            chatRef.push(msgObj);
-            if(chatMode === 'group') {
-                targetNames.forEach(target => {
-                    const room1on1Id = [myName, target].sort().join("_");
-                    db.ref('chats/' + room1on1Id).push({...msgObj, initialCount: 1});
+    // 데이터 삭제하기
+    function deleteVersion(id) {
+        if (confirm("이 버전을 리스트에서 삭제할까요?")) {
+            if(useFirebase) {
+                db.ref('versions/' + id).remove()
+                .catch((error) => {
+                    console.error("Firebase 삭제 에러:", error);
+                    alert("삭제에 실패했습니다.");
                 });
-            }
-            input.value = "";
-        }
-
-        function triggerFile() { document.getElementById('chatFileInput').click(); }
-        function uploadChatFile(input) {
-            if(input.files && input.files[0]) {
-                const f = input.files[0];
-                const reader = new FileReader();
-                reader.onload = e => sendMsg(null, {name: f.name, type: f.type, data: e.target.result});
-                reader.readAsDataURL(f);
-                input.value = "";
+            } else {
+                versions = versions.filter(v => v.id !== id);
+                localStorage.setItem('pt_versions', JSON.stringify(versions));
+                renderVersions();
             }
         }
+    }
 
-        function openMyPage() {
-            const myData = allProfiles[myName] || { pw: students[myName] };
-            document.getElementById('edit-avatar-preview').src = myData.img || '';
-            document.getElementById('editPw').value = myData.pw || students[myName];
-            document.getElementById('mypage-modal').classList.add('active');
+    function clearInputs() {
+        document.getElementById('v-name').value = '';
+        document.getElementById('v-link').value = '';
+        document.getElementById('gh-repo').value = '';
+        document.getElementById('gh-html').value = '';
+        document.getElementById('link-preview').textContent = '생성될 링크: ';
+    }
+
+    function loadPreviousLocalData() {
+        const savedId = localStorage.getItem('pt_last_gh_id');
+        if (savedId) {
+            document.getElementById('gh-id').value = savedId;
+        }
+    }
+
+    // 카드 렌더링
+    function renderVersions() {
+        const grid = document.getElementById('version-grid');
+        grid.innerHTML = '';
+
+        if (versions.length === 0) {
+            grid.innerHTML = `
+                <div class="col-span-full py-20 flex flex-col items-center justify-center text-gray-400">
+                    <div class="text-4xl mb-4 opacity-50">📂</div>
+                    <p>등록된 버전이 없습니다.</p>
+                    <p class="text-xs mt-2">관리자 모드에서 새 버전을 추가해보세요.</p>
+                </div>
+            `;
+            return;
         }
 
-        function previewEditImg(input) {
-            if(input.files && input.files[0]) {
-                const reader = new FileReader();
-                reader.onload = e => document.getElementById('edit-avatar-preview').src = e.target.result;
-                reader.readAsDataURL(input.files[0]);
-            }
-        }
+        versions.forEach(v => {
+            const card = document.createElement('div');
+            card.className = "group relative bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg hover:border-violet-200 transition-all cursor-pointer flex flex-col justify-between";
+            card.onclick = () => window.open(v.link, '_blank');
+            
+            const date = new Date(v.timestamp);
+            const dateStr = `${date.getMonth()+1}/${date.getDate()} 추가됨`;
 
-        async function saveMyPage() {
-            const newPw = document.getElementById('editPw').value;
-            const newImg = document.getElementById('edit-avatar-preview').src;
-            if(newPw.length < 4) return showAppAlert("알림", "비밀번호는 4자리여야 합니다.");
-            await db.ref('profiles/'+myName).set({ pw: newPw, img: newImg });
-            showAppAlert("성공", "프로필 정보가 업데이트되었습니다.");
-            closeModal('mypage-modal');
-        }
+            card.innerHTML = `
+                <div class="mb-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="w-10 h-10 bg-violet-50 text-violet-600 rounded-xl flex items-center justify-center font-black text-lg">V</span>
+                        <div class="flex items-center gap-2">
+                            <span class="text-[10px] text-gray-400 font-medium">${dateStr}</span>
+                            <button onclick="event.stopPropagation(); deleteVersion('${v.id}')" class="w-7 h-7 flex items-center justify-center bg-gray-50 text-gray-400 rounded-full hover:bg-red-50 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <h3 class="text-lg font-bold text-gray-800 break-words line-clamp-2">${v.name}</h3>
+                    <p class="text-[11px] text-gray-400 truncate mt-1">${v.link}</p>
+                </div>
+                <div class="mt-2 text-violet-600 font-bold text-sm flex items-center gap-1 group-hover:gap-2 transition-all">
+                    접속하기 
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                </div>
+            `;
+            grid.appendChild(card);
+        });
+    }
 
-        function exitChat() {
-            db.ref(`rooms/${currentRoomId}/online/${myName}`).remove();
-            if(chatRef) chatRef.off();
-            document.getElementById('clock-display').className = "global-clock clock-left";
-            showSection('select-section');
-        }
+    document.getElementById('pw-input').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') verifyPassword();
+    });
+</script>
 
-        function formatTime(ts) {
-            const date = new Date(ts);
-            let h = date.getHours();
-            const ampm = h >= 12 ? '오후' : '오전';
-            h = h % 12 || 12;
-            return `${ampm} ${h}:${String(date.getMinutes()).padStart(2, '0')}`;
-        }
-
-        function showSection(id) {
-            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-            document.getElementById(id).classList.add('active');
-        }
-        function closeModal(id) { document.getElementById(id).classList.remove('active'); }
-    </script>
 </body>
 </html>
