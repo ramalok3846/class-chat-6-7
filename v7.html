@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>6-7반 톡톡 v6.5</title>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <style>
+        :root { 
+            --p-main: #6a1b9a; --p-dark: #4a148c; --p-mid: #9c27b0; --p-light: #f3e5f5; 
+            --white: #ffffff; --gray: #f0f0f5; --shadow: 0 10px 30px rgba(0,0,0,0.1);
+            --danger: #ff5252; --membership: #ffd700; --membership-text: #9c27b0;
+            --msg-name-mem: #007aff; /* 멤버십 이름 강조색 (파랑계열) */
+        }
+        .theme-yellow {
+            --p-main: #fee500; --p-dark: #3c1e1e; --p-mid: #fada0a; --p-light: #fff9c4;
+            --theme-text: #3c1e1e; --gray: #f2f2f2;
+            --msg-name-mem: #e91e63; /* 노란 테마에선 핑크계열 강조 */
+        }
+        
+        * { box-sizing: border-box; transition: all 0.3s ease; font-family: 'Pretendard', -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; background: var(--gray); overflow: hidden; position: fixed; }
+
+        #fade-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--white); z-index: 10000; opacity: 0; pointer-events: none; transition: opacity 0.5s ease; }
+        #fade-overlay.visible { opacity: 1; pointer-events: auto; }
+
+        .global-clock { position: fixed; top: 15px; font-size: 13px; font-weight: 800; color: var(--p-main); z-index: 1000; background: rgba(255,255,255,0.92); padding: 8px 18px; border-radius: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); backdrop-filter: blur(10px); border: 1px solid var(--p-light); }
+        .clock-left { left: 20px; }
+        .clock-center { left: 50%; transform: translateX(-50%); }
+
+        .section { display: none; height: 100%; width: 100%; flex-direction: column; justify-content: center; align-items: center; padding: 20px; opacity: 0; transform: translateY(10px); }
+        .active { display: flex !important; opacity: 1; transform: translateY(0); }
+
+        .card { background: var(--white); padding: 30px; border-radius: 35px; box-shadow: var(--shadow); width: 100%; max-width: 420px; text-align: center; border: 1px solid rgba(255,255,255,0.8); max-height: 90vh; display: flex; flex-direction: column; }
+
+        .avatar-circle { width: 80px; height: 80px; border-radius: 30px; background: #eee; margin: 0 auto 15px; display: flex; justify-content: center; align-items: center; border: 3px solid var(--white); box-shadow: 0 8px 20px rgba(0,0,0,0.1); overflow: hidden; position: relative; flex-shrink: 0; }
+        .avatar-circle img { width: 100%; height: 100%; object-fit: cover; }
+        .membership-badge { position: absolute; bottom: -2px; right: -2px; font-size: 18px; }
+
+        .input-group { text-align: left; margin-bottom: 15px; width: 100%; }
+        .select-label { font-size: 12px; color: var(--p-main); font-weight: 800; margin-bottom: 6px; display: block; padding-left: 5px; }
+        .custom-input, .select-box { width: 100%; padding: 16px; border-radius: 20px; border: 2.5px solid var(--p-light); font-size: 16px; outline: none; background: #fafafa; cursor: pointer; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+
+        .login-error { color: var(--danger); font-size: 12px; margin-top: 5px; font-weight: 600; display: none; text-align: center; }
+        .is-membership { color: var(--membership-text) !important; font-weight: 800 !important; }
+
+        .home-tabs { display: flex; border-bottom: 1px solid #eee; margin-bottom: 15px; flex-shrink: 0; }
+        .tab-item { flex: 1; padding: 12px; font-weight: 800; color: #aaa; cursor: pointer; border-bottom: 2px solid transparent; }
+        .tab-item.active { color: var(--p-main); border-bottom: 2px solid var(--p-main); }
+
+        .friend-list { width: 100%; text-align: left; overflow-y: auto; flex: 1; }
+        .friend-item { display: flex; align-items: center; padding: 12px; border-radius: 20px; cursor: pointer; margin-bottom: 5px; }
+        .friend-item:active { background: var(--p-light); }
+
+        /* 채팅 레이아웃 */
+        #chat-section { padding: 0; justify-content: flex-start; }
+        .chat-header { width: 100%; background: var(--p-main); color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; z-index: 10; padding-top: env(safe-area-inset-top, 15px); }
+        #chat-display { flex: 1; width: 100%; max-width: 800px; overflow-y: auto; padding: 10px 0; display: flex; flex-direction: column; background: #fdfdfd; }
+        
+        .msg-row { display: flex; max-width: 90%; align-items: flex-start; margin-bottom: 15px; padding: 0 15px; flex-direction: column; }
+        .msg-row.me { align-self: flex-end; align-items: flex-end; }
+        
+        .msg-info { font-size: 11px; margin-bottom: 3px; font-weight: 700; color: #777; }
+        .msg-info.mem { color: var(--msg-name-mem); } /* 멤버십 이름 색상 */
+        
+        .bubble { padding: 10px 14px; border-radius: 18px; font-size: 15px; line-height: 1.5; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.06); word-break: break-all; position: relative; }
+        .me .bubble { background: var(--p-main); color: white; border-top-right-radius: 4px; }
+        .other .bubble { background: #f0f0f5; color: #333; border-top-left-radius: 4px; }
+
+        .input-wrap { width: 100%; background: white; padding: 10px 15px 30px; border-top: 1px solid #eee; }
+        #msgInput { flex: 1; padding: 12px 18px; border-radius: 25px; border: 1.5px solid #eee; background: #f9f9fb; font-size: 15px; outline: none; }
+
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); display: none; justify-content: center; align-items: center; z-index: 5000; backdrop-filter: blur(4px); }
+        .modal-overlay.active { display: flex; }
+        .modal-content { background: #fff; border-radius: 35px; padding: 25px; width: 92%; max-width: 400px; max-height: 85vh; overflow-y: auto; position: relative; }
+
+        .name-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 15px; }
+        .name-btn { background: #f3f3f8; border: none; padding: 14px 2px; border-radius: 15px; font-size: 13px; font-weight: 700; color: #333; cursor: pointer; text-align: center; }
+        .name-btn:active { background: var(--p-main); color: white !important; }
+        .admin-login-btn { grid-column: span 4; background: #f0f0f5; color: #888; font-size: 12px; padding: 10px; margin-top: 5px; }
+
+        .action-btn { padding: 16px; border-radius: 20px; border: none; background: var(--p-main); color: #fff; font-weight: 800; cursor: pointer; width: 100%; font-size: 16px; box-shadow: 0 4px 12px rgba(106,27,154,0.2); }
+        .sub-btn { padding: 12px; border-radius: 15px; border: none; background: #f0f0f5; color: #555; font-weight: 700; cursor: pointer; }
+        .group-chat-btn { background: #fef9c3; color: #854d0e; border: 1px solid #fde047; margin-bottom: 20px; }
+
+        /* 추가: 관리자 메뉴버튼 디자인 */
+        .admin-menu-btn { width: 100%; padding: 18px; border-radius: 20px; border: 2px solid var(--gray); background: var(--white); color: #333; font-weight: 800; font-size: 15px; margin-bottom: 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .admin-menu-btn:active { background: var(--gray); }
+        
+        .admin-chat-msg { background:#fff; border: 2px solid #eee; padding:12px; border-radius:15px; margin-bottom:10px; position:relative; }
+        .admin-chat-msg.spam { border-color: var(--danger); background: #fff5f5; }
+    </style>
+</head>
+<body class="theme-purple">
+
+    <div id="fade-overlay"></div>
+    <div id="clock-display" class="global-clock clock-left"></div>
+
+    <!-- 1. 로그인 섹션 -->
+    <div id="login-section" class="section active">
+        <div class="card">
+            <h2 style="color:var(--p-main); margin-bottom:25px;">6-7반 톡톡 v6.5 🔒</h2>
+            <div class="input-group">
+                <span class="select-label">누구신가요?</span>
+                <div class="select-box" id="login-name-box" onclick="openNameModal('login')">
+                    <span id="login-name-text">목록에서 선택</span>
+                    <span style="font-size:12px;">▼</span>
+                </div>
+            </div>
+            <div class="input-group">
+                <span class="select-label">비밀번호</span>
+                <input type="password" id="loginPw" class="custom-input" placeholder="비밀번호 입력" onkeypress="if(event.keyCode==13) handleLogin()">
+                <div id="login-error-msg" class="login-error">비밀번호가 일치하지 않습니다.</div>
+            </div>
+            <button class="action-btn" onclick="handleLogin()">로그인하기</button>
+        </div>
+    </div>
+
+    <!-- 2. 관리자 섹션 -->
+    <div id="admin-section" class="section">
+        
+        <!-- 메인 메뉴 -->
+        <div class="card" id="admin-menu-card">
+            <h3 style="color:var(--p-main); margin-bottom:20px;">⚙️ 관리자 설정</h3>
+            <button class="admin-menu-btn" onclick="showAdminSub('membership')">
+                <span>1. 멤버십 관리 👑</span> <span>〉</span>
+            </button>
+            <button class="admin-menu-btn" onclick="openMyPage()">
+                <span>2. 관리자 계정 관리 👤</span> <span>〉</span>
+            </button>
+            <button class="admin-menu-btn" onclick="showAdminSub('chat')">
+                <span>3. 유해 채팅 관리 🛡️</span> <span>〉</span>
+            </button>
+            <button class="sub-btn" style="width:100%; margin-top:15px;" onclick="softLogout()">로그아웃</button>
+        </div>
+
+        <!-- 서브메뉴: 멤버십 관리 -->
+        <div class="card" id="admin-membership-card" style="display:none;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <h3 style="color:var(--p-main); margin:0;">멤버십 관리</h3>
+                <button class="sub-btn" style="padding:6px 12px; font-size:12px;" onclick="showAdminSub('menu')">뒤로</button>
+            </div>
+            <div id="admin-student-list" class="friend-list"></div>
+        </div>
+
+        <!-- 서브메뉴: 채팅 관리 -->
+        <div class="card" id="admin-chat-card" style="display:none;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <h3 style="color:var(--p-main); margin:0;">유해 채팅 관리</h3>
+                <button class="sub-btn" style="padding:6px 12px; font-size:12px;" onclick="showAdminSub('menu')">뒤로</button>
+            </div>
+            
+            <div style="display:flex; gap:8px; margin-bottom:10px;">
+                <input type="text" id="adminSearchInput" class="custom-input" placeholder="검색어 또는 이름..." style="padding:10px 15px;">
+                <button class="action-btn" style="width:auto; margin:0; padding:10px 15px; white-space:nowrap;" onclick="searchChatAdmin()">검색</button>
+            </div>
+            <button class="sub-btn" style="width:100%; background:#ffeb3b; color:#333; margin-bottom:15px;" onclick="findSpamAdmin()">🚨 도배(연속 3회 동일) 감지</button>
+
+            <div id="admin-chat-list" class="friend-list" style="background:#f9f9fb; border-radius:15px; padding:10px; max-height:300px;">
+                <!-- 검색 결과가 여기에 표시됩니다. -->
+                <div style="text-align:center; padding:20px; color:#999; font-size:13px;">검색 버튼을 눌러 채팅 내역을 조회하세요.</div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 3. 메인 홈 섹션 -->
+    <div id="select-section" class="section">
+        <div class="card">
+            <div class="home-tabs">
+                <div id="tab-friends" class="tab-item active" onclick="setHomeTab('friends')">친구</div>
+                <div id="tab-start" class="tab-item" onclick="setHomeTab('start')">채팅 시작</div>
+            </div>
+
+            <div id="view-friends" class="friend-list">
+                <div class="friend-item" style="background:#f9f9fb; border-radius:25px; margin-bottom:15px;">
+                    <div class="avatar-circle" style="width:50px; height:50px; margin:0 12px 0 0;">
+                        <img id="my-profile-img" src="">
+                        <span id="my-membership-badge" class="membership-badge"></span>
+                    </div>
+                    <div style="text-align:left;">
+                        <div style="font-weight:800;" id="my-name-display">나</div>
+                        <div style="font-size:11px; color:#999;">프로필을 설정해보세요.</div>
+                    </div>
+                </div>
+                <div id="main-friend-list"></div>
+            </div>
+
+            <div id="view-start" style="display:none; width:100%;">
+                <button class="action-btn group-chat-btn" onclick="confirmChatStart('group')">👥 6-7반 전체 톡방 입장</button>
+                <div style="border-top:1px solid #eee; margin: 15px 0; position:relative;">
+                    <span style="position:absolute; top:-10px; left:50%; transform:translateX(-50%); background:white; padding:0 10px; font-size:11px; color:#ccc;">또는 1:1 채팅</span>
+                </div>
+                <div class="input-group">
+                    <span class="select-label">대화 상대 선택</span>
+                    <div class="select-box" onclick="openNameModal('target')">
+                        <span id="target-name-text">상대를 선택하세요</span>
+                        <span style="font-size:12px;">▼</span>
+                    </div>
+                </div>
+                <button class="action-btn" onclick="confirmChatStart('private')">개인 채팅 입장</button>
+            </div>
+
+            <div style="display:flex; gap:10px; margin-top:15px;">
+                <button class="sub-btn" style="flex:1" onclick="openMyPage()">설정</button>
+                <button class="sub-btn" style="flex:1" onclick="softLogout()">로그아웃</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. 채팅 섹션 -->
+    <div id="chat-section" class="section">
+        <header class="chat-header">
+            <div id="chat-title" style="display:flex; align-items:center; font-weight:800; gap:10px;"></div>
+            <button onclick="exitChat()" class="sub-btn" style="background:rgba(255,255,255,0.2); color:white; padding:8px 15px; border-radius:12px;">나가기</button>
+        </header>
+        <div id="chat-display"></div>
+        <div class="input-wrap">
+            <div style="display:flex; gap:8px; align-items:center; max-width:800px; margin:0 auto;">
+                <button class="sub-btn" onclick="triggerFile()" style="border-radius:50%; width:44px; height:44px; flex-shrink:0;">📎</button>
+                <input type="file" id="chatFileInput" style="display:none" onchange="uploadChatFile(this)">
+                <input type="text" id="msgInput" placeholder="메시지 입력..." onkeypress="if(event.keyCode==13) sendMsg()">
+                <button class="action-btn" style="width:auto; padding:10px 20px; flex-shrink:0; margin-top:0;" onclick="sendMsg()">전송</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 모달들 -->
+    <div id="name-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h3 style="text-align:center; margin-bottom:10px;">이름 선택</h3>
+            <div id="name-grid" class="name-grid"></div>
+            <div id="admin-login-area" style="margin-top:10px; display: flex; justify-content: center;"></div>
+            <button class="sub-btn" style="width:100%; margin-top:20px;" onclick="closeModal('name-modal')">닫기</button>
+        </div>
+    </div>
+
+    <div id="mypage-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h4 style="text-align:center; margin-top:0;" id="mypage-title">프로필 설정</h4>
+            <div style="text-align:center; margin-bottom:15px;">
+                <div class="avatar-circle" onclick="document.getElementById('editImgInput').click()" style="cursor:pointer; border:2px dashed var(--p-main); background: #fefefe;">
+                    <img id="edit-avatar-preview" src="">
+                    <div style="position:absolute; bottom:0; background:rgba(0,0,0,0.4); width:100%; color:white; font-size:10px; padding:2px;">변경</div>
+                </div>
+                <input type="file" id="editImgInput" style="display:none" accept="image/*" onchange="previewEditImg(this)">
+            </div>
+            <div class="input-group">
+                <span class="select-label">새 비밀번호 (비우면 유지)</span>
+                <input type="password" id="editPw" class="custom-input" placeholder="변경할 비밀번호">
+            </div>
+            <div class="input-group">
+                <span class="select-label">비밀번호 확인</span>
+                <input type="password" id="editPwCheck" class="custom-input" placeholder="다시 한번 입력">
+            </div>
+            <div id="membership-theme-area" style="display:none; border-top:1px solid #eee; margin-top:15px; padding-top:15px;">
+                <span class="select-label" style="color:var(--membership-text)">⭐ 멤버십 전용 테마</span>
+                <div style="display:flex; gap:10px;">
+                    <button id="theme-btn-p" class="sub-btn" style="flex:1" onclick="setTheme('purple')">보라색</button>
+                    <button id="theme-btn-y" class="sub-btn" style="flex:1" onclick="setTheme('yellow')">노란색</button>
+                </div>
+            </div>
+            <button class="action-btn" style="margin-top:15px;" onclick="saveMyPage()">설정 저장</button>
+            <button class="sub-btn" style="width:100%; margin-top:8px;" onclick="closeModal('mypage-modal')">취소</button>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = { databaseURL: "https://class-chat-6-7-default-rtdb.asia-southeast1.firebasedatabase.app/" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        const students = {"강유주":"6701","고윤서":"6702","공윤호":"6703","김성민":"6704","김태윤":"6705","나현웅":"6706","류찬혁":"6707","문예린":"6708","박소율":"6709","박채윤":"6710","배예람":"6711","백한율":"6712","우은서":"6713","우진서":"6714","윤소영":"6715","임소윤":"6716","임수현":"6717","정시후":"6718","조수빈":"6719","최리한":"6720","최은수":"6721","최준성":"6722","하예준":"6723","허단":"6724"};
+        let myName = "", targetNames = [], currentRoomId = "", chatRef = null, selLoginName = "", allProfiles = {};
+
+        // 관리자용 채팅데이터 저장
+        let adminAllChats = [];
+
+        function updateClock() {
+            const now = new Date();
+            const year = now.getFullYear(); const month = String(now.getMonth() + 1).padStart(2, '0'); const day = String(now.getDate()).padStart(2, '0');
+            const weekDays = ["일", "월", "화", "수", "목", "금", "토"];
+            let hours = now.getHours(); const ampm = hours >= 12 ? '오후' : '오전'; hours = hours % 12 || 12;
+            document.getElementById('clock-display').innerText = `${year}-${month}-${day}(${weekDays[now.getDay()]}) ${ampm} ${hours}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+        }
+        setInterval(updateClock, 1000); updateClock();
+
+        function syncProfiles() {
+            db.ref('profiles').on('value', snap => {
+                allProfiles = snap.val() || {};
+                
+                // 내 정보 업데이트 (관리자 포함)
+                const my = allProfiles[myName] || {};
+                if(myName && document.getElementById('login-name-text')) {
+                    if(my.membership) document.getElementById('login-name-text').classList.add('is-membership');
+                }
+                if(document.getElementById('my-profile-img') && myName !== '관리자') {
+                    document.getElementById('my-profile-img').src = my.img || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
+                    document.getElementById('my-name-display').innerHTML = `<span class="${my.membership ? 'is-membership' : ''}">${myName}</span> ${my.membership ? '<span style="color:var(--membership)">⭐</span>' : ''}`;
+                    document.getElementById('my-membership-badge').innerText = my.membership ? '⭐' : '';
+                    document.body.className = (my.membership && my.theme === 'yellow') ? 'theme-yellow' : 'theme-purple';
+                }
+                
+                renderFriendList();
+                if(myName === '관리자') renderAdminStudentList();
+            });
+        }
+
+        function openNameModal(type) {
+            const grid = document.getElementById('name-grid'); grid.innerHTML = "";
+            const adminArea = document.getElementById('admin-login-area'); adminArea.innerHTML = "";
+            Object.keys(students).sort().forEach(name => {
+                if(type === 'target' && name === myName) return;
+                const p = allProfiles[name] || {};
+                const btn = document.createElement('button');
+                btn.className = `name-btn ${p.membership ? 'is-membership' : ''}`; 
+                btn.innerText = name;
+                btn.onclick = () => {
+                    if(type === 'login') { 
+                        selLoginName = name; 
+                        document.getElementById('login-name-text').innerText = name;
+                        if(p.membership) document.getElementById('login-name-text').classList.add('is-membership');
+                        else document.getElementById('login-name-text').classList.remove('is-membership');
+                    } else { 
+                        targetNames = [name]; 
+                        document.getElementById('target-name-text').innerText = name;
+                        if(p.membership) document.getElementById('target-name-text').classList.add('is-membership');
+                        else document.getElementById('target-name-text').classList.remove('is-membership');
+                    }
+                    closeModal('name-modal');
+                };
+                grid.appendChild(btn);
+            });
+            if(type === 'login') {
+                const adminBtn = document.createElement('button');
+                adminBtn.className = "name-btn admin-login-btn"; adminBtn.innerText = "관리자 로그인";
+                adminBtn.onclick = () => { selLoginName = "관리자"; document.getElementById('login-name-text').innerText = "관리자"; closeModal('name-modal'); };
+                adminArea.appendChild(adminBtn);
+            }
+            document.getElementById('name-modal').classList.add('active');
+        }
+
+        async function handleLogin() {
+            const errorMsg = document.getElementById('login-error-msg'); errorMsg.style.display = "none";
+            if(!selLoginName) return alert("이름을 선택하세요.");
+            const pwInput = document.getElementById('loginPw').value;
+            let finalPw = "";
+            
+            // 기존과 다르게 관리자도 DB에서 비밀번호 확인 (없으면 기본 1234)
+            const snap = await db.ref('profiles/' + selLoginName).once('value');
+            const cloud = snap.val();
+            
+            if(selLoginName === '관리자') finalPw = (cloud && cloud.pw) ? cloud.pw : '1234';
+            else finalPw = (cloud && cloud.pw) ? cloud.pw : students[selLoginName];
+            
+            if(pwInput !== finalPw) { errorMsg.style.display = "block"; return; }
+            myName = selLoginName;
+
+            syncProfiles(); // 정보 동기화 시작
+            
+            if(myName === '관리자') { 
+                showSection('admin-section'); 
+                showAdminSub('menu'); // 관리자 메뉴 화면 표시
+                listenAdminChatData(); // 관리자용 채팅데이터 미리 불러오기
+            } else { 
+                showSection('select-section'); 
+            }
+        }
+
+        function renderFriendList() {
+            const list = document.getElementById('main-friend-list'); if(!list) return;
+            list.innerHTML = "";
+            Object.keys(students).sort().forEach(name => {
+                if(name === myName) return;
+                const p = allProfiles[name] || {};
+                const item = document.createElement('div');
+                item.className = "friend-item";
+                item.innerHTML = `
+                    <div class="avatar-circle" style="width:45px; height:45px; margin:0 12px 0 0;">
+                        <img src="${p.img || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}">
+                        ${p.membership ? '<span class="membership-badge" style="font-size:12px;">⭐</span>' : ''}
+                    </div>
+                    <div style="text-align:left;">
+                        <div style="font-weight:700;" class="${p.membership ? 'is-membership' : ''}">${name}</div>
+                    </div>
+                `;
+                item.onclick = () => { targetNames = [name]; confirmChatStart('private'); };
+                list.appendChild(item);
+            });
+        }
+
+        function setHomeTab(tab) {
+            document.getElementById('view-friends').style.display = tab === 'friends' ? 'block' : 'none';
+            document.getElementById('view-start').style.display = tab === 'start' ? 'block' : 'none';
+            document.getElementById('tab-friends').className = tab === 'friends' ? 'tab-item active' : 'tab-item';
+            document.getElementById('tab-start').className = tab === 'start' ? 'tab-item active' : 'tab-item';
+        }
+
+        // --- 관리자 추가 기능 시작 ---
+        function showAdminSub(menuType) {
+            document.getElementById('admin-menu-card').style.display = (menuType === 'menu') ? 'flex' : 'none';
+            document.getElementById('admin-membership-card').style.display = (menuType === 'membership') ? 'flex' : 'none';
+            document.getElementById('admin-chat-card').style.display = (menuType === 'chat') ? 'flex' : 'none';
+        }
+
+        function renderAdminStudentList() {
+            const container = document.getElementById('admin-student-list');
+            if(!container) return;
+            container.innerHTML = "";
+            Object.keys(students).sort().forEach(name => {
+                const p = allProfiles[name] || {};
+                const div = document.createElement('div');
+                div.className = "friend-item"; div.style.cursor = "default";
+                div.innerHTML = `
+                    <div style="flex:1; text-align:left; font-weight:700;" class="${p.membership ? 'is-membership' : ''}">${name} ${p.membership ? '⭐' : ''}</div>
+                    <button class="sub-btn" style="font-size:11px; background:${p.membership ? '#ff5252' : '#6a1b9a'}; color:white;" 
+                            onclick="db.ref('profiles/${name}/membership').set(${!p.membership})">
+                        ${p.membership ? '권한해지' : '권한부여'}
+                    </button>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function listenAdminChatData() {
+            // 전체 채팅방 내역을 모니터링
+            db.ref('chats/GLOBAL_ROOM_67').on('value', snap => {
+                adminAllChats = [];
+                snap.forEach(child => {
+                    adminAllChats.push({ id: child.key, ...child.val() });
+                });
+                // 채팅관리 탭이 열려있다면 즉시 갱신
+                if(document.getElementById('admin-chat-card').style.display === 'flex') {
+                    searchChatAdmin();
+                }
+            });
+        }
+
+        function searchChatAdmin() {
+            const keyword = document.getElementById('adminSearchInput').value.toLowerCase().trim();
+            let results = adminAllChats;
+            if(keyword) {
+                results = adminAllChats.filter(m => (m.text||'').toLowerCase().includes(keyword) || m.sender.toLowerCase().includes(keyword));
+            }
+            renderAdminChatList(results);
+        }
+
+        function findSpamAdmin() {
+            document.getElementById('adminSearchInput').value = ""; // 검색어 초기화
+            let spamResults = [];
+            // 연속 3회 동일한 메시지 감지
+            for(let i = 2; i < adminAllChats.length; i++) {
+                const m1 = adminAllChats[i-2], m2 = adminAllChats[i-1], m3 = adminAllChats[i];
+                if(m1.sender === m2.sender && m2.sender === m3.sender) {
+                    if((m1.text && m1.text === m2.text && m2.text === m3.text) || (m1.file && m2.file && m3.file)) {
+                        if(!spamResults.includes(m1)) spamResults.push(m1);
+                        if(!spamResults.includes(m2)) spamResults.push(m2);
+                        if(!spamResults.includes(m3)) spamResults.push(m3);
+                    }
+                }
+            }
+            renderAdminChatList(spamResults, true);
+        }
+
+        function renderAdminChatList(msgs, isSpamMode = false) {
+            const list = document.getElementById('admin-chat-list');
+            list.innerHTML = "";
+            if(msgs.length === 0) {
+                list.innerHTML = `<div style="text-align:center; padding:20px; color:#999; font-size:13px;">${isSpamMode ? "감지된 도배 내역이 없습니다." : "검색 결과가 없습니다."}</div>`;
+                return;
+            }
+            
+            [...msgs].reverse().forEach(m => {
+                const div = document.createElement('div');
+                div.className = `admin-chat-msg ${isSpamMode ? 'spam' : ''}`;
+                div.innerHTML = `
+                    <div style="font-weight:800; color:var(--p-main); margin-bottom:5px; font-size:12px;">👤 ${m.sender}</div>
+                    <div style="font-size:14px; margin-bottom:10px; word-break:break-all;">
+                        ${m.text || (m.file ? '📎 첨부파일' : '')}
+                    </div>
+                    <div style="display:flex; gap:5px;">
+                        <button class="sub-btn" style="flex:1; background:#ff5252; color:white; font-size:11px; padding:6px;" onclick="deleteAdminMsg('${m.id}')">이 메시지 삭제</button>
+                        <button class="sub-btn" style="flex:1; font-size:11px; padding:6px;" onclick="deleteAdminUserAll('${m.sender}')">${m.sender}글 전체삭제</button>
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        function deleteAdminMsg(id) {
+            if(confirm("해당 메시지를 삭제하시겠습니까?")) {
+                db.ref('chats/GLOBAL_ROOM_67/'+id).remove();
+            }
+        }
+
+        function deleteAdminUserAll(sender) {
+            if(confirm(`${sender}님이 작성한 모든 전체채팅을 지울까요? (되돌릴 수 없습니다)`)) {
+                const targets = adminAllChats.filter(m => m.sender === sender);
+                targets.forEach(t => db.ref('chats/GLOBAL_ROOM_67/'+t.id).remove());
+                alert("삭제 처리되었습니다.");
+            }
+        }
+        // --- 관리자 추가 기능 끝 ---
+
+
+        function confirmChatStart(mode) {
+            if(mode === 'private') {
+                if(!targetNames[0]) return alert("상대를 선택하세요.");
+                currentRoomId = [myName, targetNames[0]].sort().join("_");
+                const tData = allProfiles[targetNames[0]] || {};
+                document.getElementById('chat-title').innerHTML = `
+                    <img src="${tData.img || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" style="width:34px; height:34px; border-radius:12px;">
+                    <span class="${tData.membership ? 'is-membership' : ''}">${targetNames[0]}</span>
+                `;
+            } else {
+                currentRoomId = "GLOBAL_ROOM_67"; // 단체 채팅방 ID
+                document.getElementById('chat-title').innerHTML = `👥 6-7반 전체 톡방`;
+            }
+            chatRef = db.ref('chats/'+currentRoomId);
+            document.getElementById('clock-display').className = "global-clock clock-center";
+            showSection('chat-section');
+            listenMsgs();
+        }
+
+        function listenMsgs() {
+            chatRef.off();
+            chatRef.on('value', snap => {
+                const display = document.getElementById('chat-display'); display.innerHTML = "";
+                snap.forEach(child => {
+                    const m = child.val(); 
+                    const isMe = m.sender === myName;
+                    const senderProfile = allProfiles[m.sender] || {};
+                    const isMem = senderProfile.membership;
+
+                    const row = document.createElement('div'); 
+                    row.className = `msg-row ${isMe ? 'me' : 'other'}`;
+                    
+                    const nameLabel = isMem ? `${m.sender}(멤버십) ⭐` : m.sender;
+                    const infoDiv = document.createElement('div');
+                    infoDiv.className = `msg-info ${isMem ? 'mem' : ''}`;
+                    infoDiv.innerText = nameLabel;
+                    row.appendChild(infoDiv);
+
+                    let content = m.text || "";
+                    if(m.file) {
+                        if(m.file.type?.startsWith('image/')) content = `<img src="${m.file.data}" style="max-width:200px; border-radius:15px; box-shadow:0 4px 10px rgba(0,0,0,0.1);">`;
+                        else content = `<div style="background:#f0f0f5; padding:10px; border-radius:10px; font-size:13px;">📎 ${m.file.name}</div>`;
+                    }
+                    
+                    const bubble = document.createElement('div');
+                    bubble.className = "bubble";
+                    bubble.innerHTML = content;
+                    row.appendChild(bubble);
+
+                    display.appendChild(row);
+                });
+                display.scrollTop = display.scrollHeight;
+            });
+        }
+
+        function sendMsg(fileObj = null) {
+            const input = document.getElementById('msgInput');
+            if(!input.value && !fileObj) return;
+            chatRef.push({ sender: myName, text: input.value, file: fileObj, time: Date.now() });
+            input.value = "";
+        }
+
+        function triggerFile() { document.getElementById('chatFileInput').click(); }
+        function uploadChatFile(input) {
+            if(input.files[0]) {
+                const f = input.files[0]; const r = new FileReader();
+                r.onload = e => sendMsg({ name: f.name, type: f.type, data: e.target.result });
+                r.readAsDataURL(f);
+                input.value = "";
+            }
+        }
+
+        function openMyPage() {
+            const my = allProfiles[myName] || {};
+            document.getElementById('mypage-title').innerText = (myName === '관리자') ? "관리자 계정 관리" : "프로필 설정";
+            document.getElementById('edit-avatar-preview').src = my.img || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
+            
+            // 관리자이거나 멤버십일 때만 테마 설정 보이기 (관리자도 원하면 테마 변경 가능)
+            document.getElementById('membership-theme-area').style.display = (my.membership || myName === '관리자') ? 'block' : 'none';
+            document.getElementById('editPw').value = ""; document.getElementById('editPwCheck').value = "";
+            document.getElementById('mypage-modal').classList.add('active');
+        }
+
+        function previewEditImg(i) { if(i.files[0]) { const r = new FileReader(); r.onload = e => document.getElementById('edit-avatar-preview').src = e.target.result; r.readAsDataURL(i.files[0]); } }
+        let tempTheme = 'purple';
+        function setTheme(t) { tempTheme = t; alert(t === 'yellow' ? "노란색 테마 설정!" : "보라색 테마 설정!"); }
+
+        async function saveMyPage() {
+            const pw = document.getElementById('editPw').value;
+            if(pw && pw !== document.getElementById('editPwCheck').value) return alert("비밀번호 확인 불일치");
+            const update = { img: document.getElementById('edit-avatar-preview').src, theme: tempTheme };
+            if(pw) update.pw = pw;
+            
+            // 관리자 프로필도 DB에 profiles/관리자 에 저장됨
+            await db.ref('profiles/'+myName).update(update);
+            alert("저장되었습니다."); closeModal('mypage-modal');
+        }
+
+        function softLogout() {
+            document.getElementById('fade-overlay').classList.add('visible');
+            setTimeout(() => { location.reload(); }, 500);
+        }
+
+        function exitChat() {
+            if(chatRef) chatRef.off();
+            document.getElementById('clock-display').className = "global-clock clock-left";
+            showSection(myName === '관리자' ? 'admin-section' : 'select-section');
+        }
+
+        function showSection(id) { document.querySelectorAll('.section').forEach(s => s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+    </script>
+</body>
+</html>
